@@ -1,6 +1,10 @@
-import { Key, Trash2 } from "lucide-react"
+"use client"
+
+import { useState } from "react"
+import { Key } from "lucide-react"
 import { format } from "date-fns"
-import { id } from "date-fns/locale"
+import { id as localeId } from "date-fns/locale"
+import { toast } from "sonner"
 
 import { Button } from "@/components/ui/button"
 import {
@@ -15,16 +19,89 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 
-// --- DATA DUMMY (Ganti dengan data dari API/session pengguna yang login) ---
-const user = {
-  nama: "Zakaria Zidan",
-  email: "zakariazidan12@gmail.com",
-  no_hp: "081234567890",
-  alamat: "Jl. Mastrip, Sumbersari, Jember",
-  created_at: new Date("2024-11-10T08:30:00Z"),
+import { User, updateUser } from "@/app/services/user-services"
+import { Patient, updatePatient } from "@/app/services/pasien.services"
+
+interface ProfileContentProps {
+  user: User
+  patient: Patient | null
 }
 
-export default function ProfileContent() {
+export default function ProfileContent({
+  user: initialUser,
+  patient: initialPatient,
+}: ProfileContentProps) {
+  const [user, setUser] = useState<User>(initialUser)
+  const [patient, setPatient] = useState<Patient | null>(initialPatient)
+  const [loading, setLoading] = useState(false)
+
+  const [formData, setFormData] = useState({
+    nama: user.nama,
+    email: user.email,
+    no_hp: patient?.no_hp || "",
+    alamat: patient?.alamat || "",
+  })
+
+  // State untuk form ganti password
+  const [passwordForm, setPasswordForm] = useState({
+    currentPassword: "",
+    newPassword: "",
+    confirmPassword: "",
+  })
+
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setFormData({ ...formData, [e.target.id]: e.target.value })
+  }
+
+  const handlePasswordChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setPasswordForm({ ...passwordForm, [e.target.id]: e.target.value })
+  }
+
+  const handleSavePersonal = async () => {
+    setLoading(true)
+    try {
+      // 1. Update User Data
+      const updatedUser = await updateUser(user.id, {
+        nama: formData.nama,
+        email: formData.email,
+        role: user.role,
+      })
+      setUser(updatedUser)
+
+      // 2. Update Patient Data (jika ada data pasien)
+      if (patient) {
+        await updatePatient(patient.id, {
+          nama: formData.nama, // Sinkronisasi nama
+          nik: patient.nik, // NIK wajib
+          no_hp: formData.no_hp,
+          alamat: formData.alamat,
+          // Field optional lain jika perlu
+        })
+        setPatient(prev =>
+          prev ? { ...prev, nama: formData.nama, no_hp: formData.no_hp, alamat: formData.alamat } : null
+        )
+      }
+
+      toast.success("Profil berhasil diperbarui")
+
+    } catch (error) {
+      console.error("Gagal update profil:", error)
+      toast.error("Gagal memperbarui profil")
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleUpdatePassword = async () => {
+    if (passwordForm.newPassword !== passwordForm.confirmPassword) {
+      toast.error("Password baru dan konfirmasi tidak cocok")
+      return
+    }
+
+    // TODO: Implementasi endpoint ganti password
+    toast.info("Fitur ganti password belum tersedia di server.")
+  }
+
   return (
     <Tabs defaultValue="personal" className="space-y-6">
       <TabsList className="grid w-full grid-cols-3">
@@ -46,23 +123,50 @@ export default function ProfileContent() {
           <CardContent className="space-y-4">
             <div className="space-y-2">
               <Label htmlFor="nama">Nama Lengkap</Label>
-              <Input id="nama" defaultValue={user.nama} />
+              <Input
+                id="nama"
+                value={formData.nama}
+                onChange={handleInputChange}
+              />
             </div>
             <div className="space-y-2">
               <Label htmlFor="email">Email</Label>
-              <Input id="email" type="email" defaultValue={user.email} />
+              <Input
+                id="email"
+                type="email"
+                value={formData.email}
+                onChange={handleInputChange}
+              />
             </div>
             <div className="space-y-2">
               <Label htmlFor="no_hp">Nomor HP</Label>
-              <Input id="no_hp" defaultValue={user.no_hp} />
+              <Input
+                id="no_hp"
+                value={formData.no_hp}
+                onChange={handleInputChange}
+                disabled={!patient} // Disable jika tidak ada data pasien
+                placeholder={!patient ? "Lengkapi data pasien di klinik" : ""}
+              />
+              {!patient && (
+                <p className="text-xs text-muted-foreground">
+                  Data kontak terhubung dengan data pasien. Silakan hubungi admin untuk melengkapi data pasien.
+                </p>
+              )}
             </div>
             <div className="space-y-2">
               <Label htmlFor="alamat">Alamat</Label>
-              <Input id="alamat" defaultValue={user.alamat} />
+              <Input
+                id="alamat"
+                value={formData.alamat}
+                onChange={handleInputChange}
+                disabled={!patient}
+              />
             </div>
           </CardContent>
           <CardFooter>
-            <Button>Simpan Perubahan</Button>
+            <Button onClick={handleSavePersonal} disabled={loading}>
+              {loading ? "Menyimpan..." : "Simpan Perubahan"}
+            </Button>
           </CardFooter>
         </Card>
       </TabsContent>
@@ -78,20 +182,35 @@ export default function ProfileContent() {
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="current-password">Password Saat Ini</Label>
-              <Input id="current-password" type="password" />
+              <Label htmlFor="currentPassword">Password Saat Ini</Label>
+              <Input
+                id="currentPassword"
+                type="password"
+                value={passwordForm.currentPassword}
+                onChange={handlePasswordChange}
+              />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="new-password">Password Baru</Label>
-              <Input id="new-password" type="password" />
+              <Label htmlFor="newPassword">Password Baru</Label>
+              <Input
+                id="newPassword"
+                type="password"
+                value={passwordForm.newPassword}
+                onChange={handlePasswordChange}
+              />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="confirm-password">Konfirmasi Password Baru</Label>
-              <Input id="confirm-password" type="password" />
+              <Label htmlFor="confirmPassword">Konfirmasi Password Baru</Label>
+              <Input
+                id="confirmPassword"
+                type="password"
+                value={passwordForm.confirmPassword}
+                onChange={handlePasswordChange}
+              />
             </div>
           </CardContent>
           <CardFooter>
-            <Button>
+            <Button onClick={handleUpdatePassword}>
               <Key className="mr-2 h-4 w-4" />
               Ubah Password
             </Button>
@@ -113,35 +232,19 @@ export default function ProfileContent() {
               <div className="space-y-1">
                 <Label className="text-base">Akun Dibuat Pada</Label>
                 <p className="text-sm text-muted-foreground">
-                  {format(user.created_at, "d MMMM yyyy", { locale: id })}
+                  {user.created_at
+                    ? format(new Date(user.created_at), "d MMMM yyyy", {
+                      locale: localeId,
+                    })
+                    : "-"}
                 </p>
               </div>
             </div>
           </CardContent>
         </Card>
 
-        <Card className="mt-6 border-destructive/50">
-          <CardHeader>
-            <CardTitle className="text-destructive">Zona Berbahaya</CardTitle>
-            <CardDescription>
-              Tindakan ini tidak dapat diurungkan.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="flex items-center justify-between">
-              <div className="space-y-1">
-                <Label className="text-base">Hapus Akun</Label>
-                <p className="text-sm text-muted-foreground">
-                  Hapus akun Anda dan semua data terkait secara permanen.
-                </p>
-              </div>
-              <Button variant="destructive">
-                <Trash2 className="mr-2 h-4 w-4" />
-                Hapus Akun Saya
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
+        {/* Zona Berbahaya - Disembunyikan dulu atau disabled untuk keamanan */}
+        {/* <Card className="mt-6 border-destructive/50"> ... </Card> */}
       </TabsContent>
     </Tabs>
   )

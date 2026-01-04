@@ -18,6 +18,7 @@ export interface Patient {
   nama_kecamatan?: string
   nama_kabupaten?: string
   nama_provinsi?: string
+  total_screening?: number
 }
 
 // Tipe data untuk memperbarui pasien (cocok dengan form edit)
@@ -91,6 +92,20 @@ export const updatePatient = async (
     return response.data
   } catch (error) {
     console.error(`Gagal memperbarui pasien ID ${patientId}:`, error)
+    throw error
+  }
+}
+
+// Fungsi untuk menghapus pasien
+export const deletePatient = async (patientId: number) => {
+  try {
+    const token = getActiveToken()
+    if (!token) throw new Error("No active session token")
+    await api.delete(`/pasien/delete/${patientId}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+  } catch (error) {
+    console.error(`Gagal menghapus pasien ID ${patientId}:`, error)
     throw error
   }
 }

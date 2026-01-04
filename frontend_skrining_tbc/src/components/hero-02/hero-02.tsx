@@ -30,14 +30,14 @@ const Hero02 = () => {
             Cukup dengan merekam suara batuk Anda dan mengisi form sederhana, sistem kami akan membantu melakukan skrining awal TBC secara otomatis.
             Teknologi ini dirancang agar siapa pun dapat melakukan pengecekan mandiri, kapan saja dan di mana saja, tanpa harus menunggu lama di fasilitas kesehatan.
           </p>
-          <Link href="/dashboard-user" className="mt-12 flex items-center">
+          <Link href="/user" className="mt-12 flex items-center">
             <LiquidButton variant="default" size="lg" className="rounded-full text-black">
               Mulai Screening Sekarang
             </LiquidButton>
           </Link>
         </div>
-        <Image 
-          src="/lungs.png" 
+        <Image
+          src="/lungs.png"
           alt="lungs healhty"
           width={500}
           height={500}

@@ -6,6 +6,7 @@ import { useSearchParams, useRouter } from "next/navigation"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { useForm } from "react-hook-form"
 import { z } from "zod"
+import { Suspense } from "react"
 
 import api from "@/app/services/api"
 import { getActiveToken } from "@/app/services/auth.services"
@@ -86,7 +87,7 @@ const formSchema = z.object({
 
 export type FormValues = z.infer<typeof formSchema>
 
-export default function ScreeningForm() {
+function ScreeningFormContent() {
   const searchParams = useSearchParams()
   const router = useRouter()
   const [patientName, setPatientName] = React.useState<string | null>(null)
@@ -96,7 +97,7 @@ export default function ScreeningForm() {
     const id = searchParams.get("pasienId")
     setPasienId(id)
     if (id) {
-      ;(async () => {
+      ; (async () => {
         try {
           // Coba ambil detail pasien langsung jika endpoint tersedia
           const token = getActiveToken()
@@ -630,14 +631,22 @@ export default function ScreeningForm() {
             />
           </div>
           <Separator />
-            <div className="flex justify-end gap-4">
-              <Button asChild type="button" variant="outline">
-                <Link href="/user">Kembali</Link>
-              </Button>
-              <Button type="submit">Selanjutnya</Button>
-            </div>
+          <div className="flex justify-end gap-4">
+            <Button asChild type="button" variant="outline">
+              <Link href="/user">Kembali</Link>
+            </Button>
+            <Button type="submit">Selanjutnya</Button>
+          </div>
         </form>
       </Form>
     </div>
+  )
+}
+
+export default function ScreeningForm() {
+  return (
+    <Suspense fallback={<div>Loading...</div>}>
+      <ScreeningFormContent />
+    </Suspense>
   )
 }

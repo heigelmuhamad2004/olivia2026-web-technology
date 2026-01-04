@@ -1,6 +1,7 @@
 "use client"
 
 import { Button } from "@/components/ui/button"
+import Link from "next/link"
 
 // Definisikan props untuk komponen
 interface DashboardHeroProps {
@@ -28,7 +29,9 @@ export default function DashboardHero({
         <div className="mt-6 flex justify-center gap-3">
           {/* Gunakan prop onStartScreening pada tombol */}
           <Button onClick={onStartScreening}>Mulai Screening</Button>
-          <Button variant="outline">Lihat Riwayat</Button>
+          <Button asChild type="button" variant="outline">
+            <Link href="/user/riwayat-screening">Lihat Riwayat</Link>
+          </Button>
         </div>
       </div>
     </section>

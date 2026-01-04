@@ -174,7 +174,7 @@ export default function ScreeningForm() {
       const result = await createSkrining(values, pasienId)
       console.log("Skrining berhasil dibuat:", result)
       alert("Data skrining berhasil disimpan!")
-      router.push(`/user/screening-hasil?skriningId=${result.data.id}`)
+      router.push(`/user/hasil-screening?pasienId=${pasienId}`)
     } catch (error) {
       console.error("Terjadi kesalahan saat menyimpan data:", error)
       alert("Terjadi kesalahan saat menyimpan data. Silakan coba lagi.")
@@ -630,12 +630,12 @@ export default function ScreeningForm() {
             />
           </div>
           <Separator />
-          <div className="flex justify-end gap-4">
-            <Button asChild type="button" variant="outline">
-              <Link href="/user">Kembali</Link>
-            </Button>
-            <Button type="submit">Selanjutnya</Button>
-          </div>
+            <div className="flex justify-end gap-4">
+              <Button asChild type="button" variant="outline">
+                <Link href="/user">Kembali</Link>
+              </Button>
+              <Button type="submit">Selanjutnya</Button>
+            </div>
         </form>
       </Form>
     </div>

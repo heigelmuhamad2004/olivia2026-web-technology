@@ -1,4 +1,5 @@
-from app import app
+from app import app, db
+from sqlalchemy import text
 from app.controller import pasien_controller
 from app.controller import skrining_controller
 from app.controller import wilayah_controller
@@ -7,6 +8,37 @@ from app.controller import auth_controller
 # Impor user_controller yang baru
 from app.controller.user_controller import user_bp
 from app.controller import admin_puskesmas_controller
+
+try:
+    from app.model import user, pasien, kecamatan, skrining, token_block_list
+except ImportError as e:
+    print(f"Error Import Model: {e}")
+# ----------------------------------
+
+@app.route('/debug-db')
+def debug_db():
+    try:
+        # 1. Cek Koneksi
+        db.session.execute(text('SELECT 1'))
+        
+        # 2. Paksa Buat Tabel
+        db.create_all()
+        
+        # 3. Cek apakah tabel benar-benar terbuat
+        inspector = db.inspect(db.engine)
+        tables = inspector.get_table_names()
+        
+        return {
+            "status": "Sukses",
+            "message": "Perintah create_all() sudah dijalankan.",
+            "tabel_yang_ada_sekarang": tables,
+            "database_url_dipakai": app.config['SQLALCHEMY_DATABASE_URI'].split('@')[1] # Demi keamanan, hanya tampilkan host
+        }
+    except Exception as e:
+        return {
+            "status": "Gagal",
+            "error": str(e)
+        }
 
 #TEST ROUTES
 @app.route('/')

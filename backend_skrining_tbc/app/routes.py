@@ -6,6 +6,7 @@ from flask import Blueprint
 from app.controller import auth_controller
 # Impor user_controller yang baru
 from app.controller.user_controller import user_bp
+from app.controller import admin_puskesmas_controller
 
 #TEST ROUTES
 @app.route('/')
@@ -75,6 +76,21 @@ def get_kabupaten(provinsi_id):
 @app.route('/kecamatan/<int:kabupaten_id>', methods=['GET'])
 def get_kecamatan(kabupaten_id):
     return wilayah_controller.get_kecamatan(kabupaten_id)
+
+# ADMIN PUSKESMAS BUAT RUJUKAN
+# 1. Get List Rujukan Masuk
+@app.route('/admin/rujukan', methods=['GET'])
+def get_rujukan_admin():
+    return admin_puskesmas_controller.get_rujukan_by_kecamatan()
+
+# 2. Verifikasi Pasien Datang
+@app.route('/admin/rujukan/verifikasi/<int:id>', methods=['PUT'])
+def verify_rujukan_admin(id):
+    return admin_puskesmas_controller.verify_rujukan(id)
+
+@app.route('/skrining/<int:id>', methods=['GET'])
+def get_skrining_detail(id):
+    return skrining_controller.get_skrining_detail(id)
 
 # Daftarkan Blueprint untuk user management dengan prefix /users
 app.register_blueprint(user_bp, url_prefix='/users')

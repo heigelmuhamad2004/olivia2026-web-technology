@@ -56,7 +56,7 @@ export default function RiwayatScreeningPage() {
           {patients.map((patient) => (
             <Link
               key={patient.id}
-              href={`/user/hasil-screening?pasienId=${patient.id}`}
+              href={`/user/list-riwayat-pasien?pasienId=${patient.id}`}
               className="block"
             >
               <Card className="group overflow-hidden transition-all hover:border-primary hover:shadow-md">

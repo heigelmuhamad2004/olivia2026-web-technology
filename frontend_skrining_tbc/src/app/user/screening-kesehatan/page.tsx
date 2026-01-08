@@ -122,7 +122,7 @@ function ScreeningFormContent() {
             }
             const list: Patient[] = (resAll.data && (resAll.data.data ?? resAll.data)) || []
             const selected = list.find((p: Patient) => Number(p.id) === Number(id))
-            if (selected) setPatientName(selected.nama)
+            if (selected) setPatientName(selected.nama ?? null)
           }
         } catch (e) {
           console.error("Gagal mengambil data pasien:", e)
@@ -560,7 +560,7 @@ function ScreeningFormContent() {
             />
             <FormField
               control={form.control}
-              name="berkeringat_malam_hari_tanpa_kegiatan"
+              name="berkesingat_malam_hari_tanpa_kegiatan"
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>Berkeringat malam hari tanpa kegiatan</FormLabel>

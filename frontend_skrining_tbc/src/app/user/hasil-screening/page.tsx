@@ -1,57 +1,77 @@
 "use client"
 
-import React, { useEffect, useState } from "react"
+import React, { useEffect, useState, useRef } from "react" // 1. Tambah useRef
 import Link from "next/link"
 import { useSearchParams } from "next/navigation"
 import { Button } from "@/components/ui/button"
-import { getRiwayatSkriningByPasien } from "@/app/services/skrining.services"
+import {
+  getRiwayatSkriningByPasien,
+  SkriningRiwayat,
+} from "@/app/services/skrining.services"
 
-interface SkriningRiwayat {
-  id: number
-  nama: string
-  nik: string
-  alamat: string
-  tanggal_lahir: string
-  usia: string
-  kelamin: string
-  no_hp: string
-  email: string | null
-  pekerjaan: string
-  berat_badan: string
-  tinggi_badan: string
-  hasil_screening: string
-
-  // risiko + gejala
-  riwayat_kontak_tbc: string
-  pernah_terdiagnosa: string
-  pernah_berobat_tbc: string
-  pernah_berobat_tb_tapi_tidak_tuntas: string
-  malnutrisi: string
-  merokok_perokok_pasif: string
-  riwayat_dm_kencing_manis: string
-  lansia: string
-  ibu_hamil: string
-  batuk: string
-  bb_turun_tanpa_sebab_nafsu_makan_turun: string
-  demam_tidak_diketahui_penyebabnya: string
-  badan_lemas: string
-  berkeringat_malam_tanpa_kegiatan: string
-}
+// 2. Import library PDF
+import html2canvas from "html2canvas"
+import jsPDF from "jspdf"
+import { Download } from "lucide-react" // Optional: Icon download jika pakai lucide-react
 
 function HasilScreeningContent() {
   const searchParams = useSearchParams()
   const pasienId = searchParams.get("pasienId")
   const [riwayat, setRiwayat] = useState<SkriningRiwayat[]>([])
   const [loading, setLoading] = useState(true)
+  const [isDownloading, setIsDownloading] = useState(false) // State untuk loading tombol download
+
+  // 3. Buat Ref untuk elemen yang mau di-print
+  const pdfRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     if (pasienId) {
-      getRiwayatSkriningByPasien(Number(pasienId)).then((data) => {
+      getRiwayatSkriningByPasien(pasienId).then((data) => {
         setRiwayat(data)
         setLoading(false)
       })
     }
   }, [pasienId])
+
+  // 4. Fungsi Logic Download PDF
+  const handleDownloadPdf = async () => {
+    const element = pdfRef.current
+    if (!element) return
+
+    setIsDownloading(true)
+    try {
+      // Mengubah elemen HTML menjadi Canvas (Gambar)
+      const canvas = await html2canvas(element, {
+        scale: 2, // Meningkatkan resolusi agar teks tidak pecah
+        useCORS: true, // Mengizinkan gambar eksternal (jika ada)
+      })
+
+      const imgData = canvas.toDataURL("image/png")
+      
+      // Setup PDF (A4 Portrait)
+      const pdf = new jsPDF("p", "mm", "a4")
+      const pdfWidth = pdf.internal.pageSize.getWidth()
+      const pdfHeight = pdf.internal.pageSize.getHeight()
+      
+      // Menghitung rasio gambar agar pas di A4
+      const imgWidth = canvas.width
+      const imgHeight = canvas.height
+      const ratio = Math.min(pdfWidth / imgWidth, pdfHeight / imgHeight)
+      
+      const imgX = (pdfWidth - imgWidth * ratio) / 2
+      const imgY = 10 // Margin atas sedikit
+      
+      // Masukkan gambar ke PDF. Parameter: (Image, Format, X, Y, Width, Height)
+      pdf.addImage(imgData, "PNG", 0, imgY, pdfWidth, (imgHeight * pdfWidth) / imgWidth)
+      
+      // Simpan file
+      pdf.save(`Hasil_Skrining_${hasilScreening?.nama || "Pasien"}.pdf`)
+    } catch (error) {
+      console.error("Gagal download PDF:", error)
+    } finally {
+      setIsDownloading(false)
+    }
+  }
 
   if (loading) {
     return <p className="text-center mt-10">Loading...</p>
@@ -72,27 +92,61 @@ function HasilScreeningContent() {
     )
   }
 
-  // Ambil skrining terbaru
-  const hasilScreening = riwayat[riwayat.length - 1]
+  const skriningId = searchParams.get("skriningId")
+
+  // Ambil skrining tertentu atau terbaru
+  let hasilScreening: SkriningRiwayat | undefined
+
+  if (skriningId) {
+    hasilScreening = riwayat.find((item) => item.id === Number(skriningId))
+  }
+
+  if (!hasilScreening) {
+    hasilScreening = riwayat[riwayat.length - 1]
+  }
 
   const isPositif =
     hasilScreening.hasil_screening.toLowerCase() === "terduga"
 
   return (
     <div className="flex min-h-[calc(100vh-5rem)] w-full items-center justify-center px-4 pb-24 pt-10">
-      <div className="w-full max-w-3xl space-y-8 rounded-xl border bg-card p-6 shadow-sm">
+      
+      {/* PERBAIKAN FINAL:
+         1. Hapus 'shadow-sm', 'border', 'bg-card' dari className.
+         2. Gunakan style manual untuk border dan shadow agar aman dari oklab.
+         3. Hapus class warna teks Tailwind (text-muted-foreground, text-primary/80)
+            dan ganti dengan HEX code manual.
+      */}
+      <div 
+        ref={pdfRef} 
+        className="w-full max-w-3xl space-y-8 rounded-xl p-6 bg-white text-black"
+        style={{
+          backgroundColor: "#ffffff",
+          color: "#000000",
+          border: "1px solid #e5e7eb", // Ganti border Tailwind dengan HEX
+          boxShadow: "none"            // Matikan shadow agar html2canvas tidak bingung
+        }}
+      >
 
         {/* HEADER */}
         <header className="space-y-2 text-center">
-          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-primary/80">
+          {/* Ganti text-primary/80 dengan HEX color manual (#52525b adalah gray-600) */}
+          <p 
+            className="text-xs font-semibold uppercase tracking-[0.2em]"
+            style={{ color: "#52525b" }} 
+          >
             Hasil Screening
           </p>
           <h1 className="text-3xl font-semibold tracking-tight sm:text-4xl">
             Ringkasan Hasil Screening Pasien
           </h1>
-          <p className="mx-auto max-w-2xl text-sm text-muted-foreground sm:text-base">
+          {/* Ganti text-muted-foreground dengan HEX color manual (#71717a adalah gray-500) */}
+          <p 
+            className="mx-auto max-w-2xl text-sm sm:text-base"
+            style={{ color: "#71717a" }}
+          >
             Berikut adalah ringkasan data dan hasil screening untuk pasien{" "}
-            <span className="font-bold text-foreground">
+            <span className="font-bold text-black">
               {hasilScreening.nama}
             </span>
             .
@@ -100,9 +154,16 @@ function HasilScreeningContent() {
         </header>
 
         {/* IDENTITAS */}
-        <section className="grid gap-6 rounded-lg bg-muted/40 p-4 sm:grid-cols-2 sm:p-6">
-          <div className="space-y-2 border-b border-border pb-4 sm:border-b-0 sm:border-r sm:pb-0 sm:pr-6">
-            <p className="text-xs font-semibold uppercase text-muted-foreground">
+        <section 
+          className="grid gap-6 rounded-lg p-4 sm:grid-cols-2 sm:p-6"
+          style={{ backgroundColor: "#f4f4f5" }} // bg-zinc-100 manual
+        >
+          {/* Hapus border-border, ganti dengan style manual */}
+          <div 
+             className="space-y-2 pb-4 sm:pb-0 sm:pr-6"
+             style={{ borderBottom: "1px solid #e5e7eb" }} // border-gray-200
+          >
+            <p className="text-xs font-semibold uppercase" style={{ color: "#71717a" }}>
               Identitas
             </p>
             <div className="space-y-1 text-sm">
@@ -115,8 +176,9 @@ function HasilScreeningContent() {
           </div>
 
           {/* KONTAK */}
-          <div className="space-y-2 pt-4 sm:border-l sm:border-border sm:pl-6 sm:pt-0">
-            <p className="text-xs font-semibold uppercase text-muted-foreground">
+          {/* Hapus border-border, ganti dengan style manual (untuk tampilan desktop border kiri) */}
+          <div className="space-y-2 pt-4 sm:pl-6 sm:pt-0">
+            <p className="text-xs font-semibold uppercase" style={{ color: "#71717a" }}>
               Kontak & Pekerjaan
             </p>
             <div className="space-y-1 text-sm">
@@ -129,29 +191,58 @@ function HasilScreeningContent() {
           </div>
 
           {/* HASIL */}
-          <div className="space-y-2 border-t border-border pt-4 sm:col-span-2">
-            <p className="text-xs font-semibold uppercase text-muted-foreground">
+          <div 
+            className="space-y-2 pt-4 sm:col-span-2"
+            style={{ borderTop: "1px solid #e5e7eb" }}
+          >
+            <p className="text-xs font-semibold uppercase" style={{ color: "#71717a" }}>
               Ringkasan hasil screening
             </p>
-            <div className="space-y-2 rounded-md bg-background p-3 text-sm">
+            <div className="space-y-2 rounded-md p-3 text-sm" style={{ backgroundColor: "#ffffff" }}>
               <div className="flex flex-wrap items-baseline gap-2">
                 <span className="font-medium">Hasil screening:</span>
                 <span
-                  className={`rounded-full px-3 py-1 text-xs font-semibold uppercase tracking-wide ${
-                    isPositif
-                      ? "bg-red-100 text-red-700"
-                      : "bg-emerald-100 text-emerald-700"
-                  }`}
+                  className="rounded-full px-3 py-1 text-xs font-semibold uppercase tracking-wide"
+                  style={{
+                    // HEX Colors Manual (PENTING)
+                    backgroundColor: isPositif ? "#fee2e2" : "#d1fae5", 
+                    color: isPositif ? "#b91c1c" : "#047857"
+                  }}
                 >
                   {hasilScreening.hasil_screening}
                 </span>
               </div>
+              {/* TAMBAHAN UNTUK RUJUKAN */}
+{isPositif && (
+  <div className="mt-6 rounded-lg border border-yellow-200 bg-yellow-50 p-4">
+    <div className="flex gap-3">
+      <div className="mt-0.5 shrink-0 text-yellow-600">
+        {/* Icon Alert */}
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-5 h-5">
+          <path fillRule="evenodd" d="M9.401 3.003c1.155-2 4.043-2 5.197 0l7.355 12.748c1.154 2-.29 4.5-2.599 4.5H4.645c-2.309 0-3.752-2.5-2.598-4.5L9.4 3.003zM12 8.25a.75.75 0 01.75.75v3.75a.75.75 0 01-1.5 0V9a.75.75 0 01.75-.75zm0 8.25a.75.75 0 100-1.5.75.75 0 000 1.5z" clipRule="evenodd" />
+        </svg>
+      </div>
+      <div>
+        <h4 className="font-semibold text-yellow-900">Rujukan Otomatis Dibuat</h4>
+        <p className="mt-1 text-sm text-yellow-800">
+          Berdasarkan hasil screening dan domisili Anda, sistem telah mengirimkan notifikasi ke <b>Puskesmas Kecamatan Anda</b>.
+        </p>
+        <p className="mt-2 text-sm font-medium text-yellow-900">
+          Silakan datang ke Puskesmas tersebut membawa unduhan PDF ini untuk verifikasi dan pemeriksaan lanjutan.
+        </p>
+      </div>
+    </div>
+  </div>
+)}
             </div>
           </div>
 
           {/* RISIKO & GEJALA */}
-          <div className="space-y-2 border-t border-border pt-4 sm:col-span-2">
-            <p className="text-xs font-semibold uppercase text-muted-foreground">
+          <div 
+             className="space-y-2 pt-4 sm:col-span-2"
+             style={{ borderTop: "1px solid #e5e7eb" }}
+          >
+            <p className="text-xs font-semibold uppercase" style={{ color: "#71717a" }}>
               Faktor risiko dan gejala
             </p>
 
@@ -174,13 +265,19 @@ function HasilScreeningContent() {
           </div>
         </section>
 
-        {/* FOOTER */}
-        <footer className="flex flex-col gap-3 border-t pt-4 sm:flex-row sm:items-center sm:justify-between">
-          <Button asChild variant="outline">
-            <Link href="/user/riwayat-screening">Kembali</Link>
-          </Button>
-        </footer>
       </div>
+
+      {/* Action Buttons */}
+      <div className="fixed bottom-10 left-0 right-0 flex justify-center gap-4">
+          <Button asChild variant="outline" className="shadow-lg bg-white">
+            <Link href={skriningId ? `/user/list-riwayat-pasien?pasienId=${pasienId}` : "/user/riwayat-screening"}>Kembali</Link>
+          </Button>
+          
+          <Button onClick={handleDownloadPdf} disabled={isDownloading} className="shadow-lg">
+            {isDownloading ? "Memproses..." : <><Download className="mr-2 h-4 w-4" /> Download PDF</>}
+          </Button>
+      </div>
+
     </div>
   )
 }

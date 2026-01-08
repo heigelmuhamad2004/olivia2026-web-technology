@@ -1,5 +1,7 @@
 from app.model.skrining import Skrining
 from app.model.pasien import Pasien
+# 1. IMPORT RUJUKAN DISINI
+from app.model.rujukan import Rujukan, StatusRujukan 
 from app.services.skrining_services import hitung_status_skrining
 from app import response, db
 from flask import request
@@ -20,12 +22,27 @@ def create_skrining():
 
         data = request.get_json() or {}
 
-        # Pastikan pasien milik user
+        # 1. Validasi Pasien
         pasien = Pasien.query.filter_by(id=data.get("pasien_id"), user_id=user_id).first()
         if not pasien:
             return response.bad_request([], "Pasien tidak ditemukan atau bukan milik Anda")
 
-        # Parse tanggal skrining
+        # 2. Siapkan Data Tambahan untuk AI (Usia & Gender)
+        usia_pasien = 30 # Default
+        if pasien.tanggal_lahir:
+            today = datetime.today()
+            usia_pasien = today.year - pasien.tanggal_lahir.year
+        
+        jk_str = str(pasien.jenis_kelamin)
+        if hasattr(pasien.jenis_kelamin, 'value'):
+            jk_str = pasien.jenis_kelamin.value
+
+        data_pasien_tambahan = {
+            "usia": usia_pasien,
+            "jenis_kelamin": jk_str
+        }
+
+        # 3. Parse Tanggal
         tanggal_skrining_raw = data.get("tanggal_skrining")
         if tanggal_skrining_raw:
             try:
@@ -38,27 +55,26 @@ def create_skrining():
         else:
             tanggal_skrining = datetime.utcnow()
 
+        # 4. Helper Pick Data
         def pick(*keys, default=None):
             for k in keys:
                 if k in data:
                     return data.get(k)
             return default
 
+        # 5. Susun Payload Awal
         payload = {
             "user_id": user_id,
             "pasien_id": pick("pasien_id", "pasienId"),
             "berat_badan": pick("berat_badan", "beratBadan"),
             "tinggi_badan": pick("tinggi_badan", "tinggiBadan"),
-
+            
             # Faktor risiko
             "riwayat_kontak_tbc": pick("riwayat_kontak_tbc"),
             "pernah_terdiagnosis_tbc": pick("pernah_terdiagnosis_tbc"),
             "pernah_berobat_tbc": pick("pernah_berobat_tbc"),
             "nama_obat_tbc": pick("nama_obat_tbc"),
-            "pernah_beroobat_tbc_namun_tidak_tuntas": pick(
-                "pernah_berobat_tbc_namun_tidak_tuntas",
-                "pernah_beroobat_tbc_namun_tidak_tuntas",
-            ),
+            "pernah_beroobat_tbc_namun_tidak_tuntas": pick("pernah_berobat_tbc_namun_tidak_tuntas", "pernah_beroobat_tbc_namun_tidak_tuntas"),
             "malnutrisi": pick("malnutrisi"),
             "merokok_atau_perokokok_pasif": pick("merokok_atau_perokok_pasif"),
             "riwayat_diabetes_melitus_atau_kencing_manis": pick("riwayat_diabetes_melitus_atau_kencing_manis"),
@@ -78,10 +94,13 @@ def create_skrining():
             "status": "pending",
         }
 
-        # 🔥 Gunakan logika skrining dari service
-        payload["hasil_deteksi"] = hitung_status_skrining(payload)
+        # 6. HITUNG HASIL HYBRID (AI + MANUAL)
+        status_hasil, metode, confidence = hitung_status_skrining(payload, data_pasien_tambahan)
 
-        # Convert angka
+        # Masukkan ke payload
+        payload["hasil_deteksi"] = status_hasil
+        
+        # 7. Convert Angka
         try:
             if payload.get("berat_badan") is not None:
                 payload["berat_badan"] = float(payload["berat_badan"])
@@ -90,16 +109,45 @@ def create_skrining():
         except Exception:
             return response.bad_request([], "Format berat/tinggi badan tidak valid")
 
+        # 8. Simpan ke Database (Skrining)
         skrining = Skrining(**payload)
-
         db.session.add(skrining)
+        
+        # PENTING: Flush agar skrining.id terbentuk sebelum commit
+        db.session.flush() 
+
+        # ------------------------------------------------------------------
+        # 9. LOGIC BUAT RUJUKAN OTOMATIS DISINI
+        # ------------------------------------------------------------------
+        if status_hasil == "TERDUGA TBC":
+            new_rujukan = Rujukan(
+                skrining_id=skrining.id,
+                pasien_id=pasien.id,
+                status=StatusRujukan.PENDING,
+                # Simpan info metode deteksi & confidence skor AI di catatan admin
+                catatan=f"Rujukan otomatis. Deteksi: {metode} ({confidence*100:.0f}%)"
+            )
+            db.session.add(new_rujukan)
+        # ------------------------------------------------------------------
+
         db.session.commit()
 
-        return response.success(single_object(skrining, pasien), "Berhasil menambahkan data skrining")
+        # Return Data ke Frontend
+        data_response = {
+            "id": skrining.id,
+            "hasil_deteksi": skrining.hasil_deteksi,
+            "info_tambahan": {
+                "metode": metode,
+                "akurasi_ai": confidence
+            }
+        }
+        
+        return response.success(data_response, "Berhasil menambahkan data skrining")
 
     except Exception as e:
+        db.session.rollback() # Rollback jika error
         print("Error create_skrining:", e)
-        return response.bad_request([], "Gagal menambahkan data skrining")
+        return response.bad_request([], f"Gagal menambahkan data skrining: {str(e)}")
 
 
 # ✅ ADMIN / USER melihat data skrining
@@ -199,12 +247,10 @@ def get_statistik():
 
         suspect = sum(
             1 for skrining, pasien in records
-            if skrining.hasil_deteksi.upper() in ["TERDUGA", "POSITIF"]
+            if skrining.hasil_deteksi.upper() in ["TERDUGA", "TERDUGA TBC", "POSITIF"] # Update keyword
         )
 
         non_suspect = total_pasien - suspect
-
-        # total screening sessions (jika pasien skrining berkali-kali)
         total_screening = len(records)
 
         statistik = {
@@ -219,6 +265,31 @@ def get_statistik():
     except Exception as e:
         print("Error get_statistik:", e)
         return response.bad_request([], "Gagal mengambil statistik")
+
+
+#GET RIWAYAT SKRINING BY PASIEN ID UNTUK RUJUKAN
+@jwt_required()
+def get_skrining_detail(id):
+    try:
+        # Cari skrining berdasarkan ID
+        skrining = Skrining.query.get(id)
+        
+        if not skrining:
+            return response.bad_request([], "Data skrining tidak ditemukan")
+
+        # Cek hak akses: User biasa hanya boleh lihat punya sendiri
+        claims = get_jwt()
+        if claims['role'] == 'user' and skrining.user_id != claims['id']:
+             return response.bad_request([], "Anda tidak berhak melihat data ini")
+
+        # Gunakan helper single_object (yang sudah support data rujukan)
+        data = single_object(skrining, skrining.pasien)
+        
+        return response.success(data, "Berhasil mengambil detail skrining")
+
+    except Exception as e:
+        print("Error get_skrining_detail:", e)
+        return response.bad_request([], "Terjadi kesalahan server")
 
 #GET RIWAYAT SKRINING BY PASIEN ID
 @jwt_required()
@@ -257,17 +328,30 @@ def format_array(datas):
     return array
 
 def single_object(skrining, pasien):
-    # Gabungkan data dari skrining dan pasien
-    # Sesuaikan nama field agar cocok dengan Zod Schema di frontend
+    # --- LOGIC TAMBAHAN: DATA RUJUKAN & WILAYAH ---
+    # Mengambil data rujukan dari backref (jika ada)
+    rujukan = getattr(skrining, 'rujukan_detail', None) # Gunakan getattr biar aman
+    
+    status_rujukan = None
+    tgl_verifikasi = None
+
+    if rujukan:
+        # Handle Enum StatusRujukan
+        status_rujukan = rujukan.status.value if hasattr(rujukan.status, 'value') else str(rujukan.status)
+        
+        # Ambil tanggal jika sudah verified
+        if status_rujukan == 'Terverifikasi' and rujukan.updated_at:
+             tgl_verifikasi = rujukan.updated_at.isoformat()
+
     return {
         "id": skrining.id,
         "nama": pasien.nama,
         "nik": pasien.nik,
         "no_hp": pasien.no_hp,
         "alamat": pasien.alamat,
-        "hasil_screening": skrining.hasil_deteksi,  # Ganti nama field
+        "hasil_screening": skrining.hasil_deteksi,
         "tanggal_screening": skrining.tanggal_skrining.isoformat(),
-        "total_screening": 1,  # Placeholder, Anda perlu logika untuk menghitung ini
+        "total_screening": 1,
         "email": pasien.user.email if pasien.user else None,
         "tanggal_lahir": pasien.tanggal_lahir.isoformat() if pasien.tanggal_lahir else None,
         "usia": f"{pasien.usia} tahun" if pasien.usia else None,
@@ -275,7 +359,8 @@ def single_object(skrining, pasien):
         "kelamin": pasien.jenis_kelamin.value if pasien.jenis_kelamin else None,
         "berat_badan": str(skrining.berat_badan),
         "tinggi_badan": str(skrining.tinggi_badan),
-        # Map semua field gejala dan faktor risiko
+        
+        # Map field gejala
         "riwayat_kontak_tbc": skrining.riwayat_kontak_tbc,
         "pernah_terdiagnosa": skrining.pernah_terdiagnosis_tbc,
         "pernah_berobat_tbc": skrining.pernah_berobat_tbc,
@@ -292,6 +377,13 @@ def single_object(skrining, pasien):
         "berkeringat_malam_tanpa_kegiatan": skrining.berkesingat_malam_hari_tanpa_kegiatan,
         "sesak_napas_tanpa_nyeri_dada": skrining.sesak_napas_tanpa_nyeri_dada,
         "ada_pembesaran_getah_bening_dileher": skrining.ada_pembengkakan_kelenjar_getah_bening_pada_leher_atau_ketiak,
-        # Placeholder untuk riwayat, karena ini butuh query tambahan
-        "riwayat_screening": []
+
+        # --- TAMBAHAN UNTUK FITUR SURAT RUJUKAN ---
+        "rujukan_status": status_rujukan,          
+        "rujukan_verified_at": tgl_verifikasi,     
+        
+        # Ambil Data Wilayah untuk KOP SURAT
+        # Menggunakan safe navigation (getattr/check None)
+        "nama_kecamatan": pasien.kecamatan.nama_kecamatan if pasien.kecamatan else "-",
+        "nama_kabupaten": pasien.kecamatan.kabupaten.nama_kabupaten if (pasien.kecamatan and pasien.kecamatan.kabupaten) else "-",
     }

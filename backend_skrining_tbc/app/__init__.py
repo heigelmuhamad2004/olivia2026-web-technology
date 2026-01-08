@@ -16,7 +16,14 @@ migrate = Migrate(app, db)
 jwt = JWTManager (app)
 print("Loaded DB URI:", app.config["SQLALCHEMY_DATABASE_URI"])
 CORS(app)
-from app.model import Provinsi, Kabupaten, Kecamatan, Pasien, Skrining, User, Rujukan, TokenBlocklist
+from app.model import provinsi
+from app.model import kabupaten
+from app.model import kecamatan
+from app.model import pasien
+from app.model import skrining
+from app.model import user
+from app.model import rujukan
+from app.model import token_block_list
 
 from app.controller.auth_controller import auth_bp
 app.register_blueprint (auth_bp, url_prefix='/auth')

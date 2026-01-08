@@ -1,16 +1,28 @@
-import os 
+import os
+from dotenv import load_dotenv
 
 basedir = os.path.abspath(os.path.dirname(__file__))
-from dotenv import load_dotenv
 load_dotenv(os.path.join(basedir, '.env'))
 
 class Config(object):
-    HOST = str(os.environ.get("DB_HOST"))
-    DATABASE = str(os.environ.get("DB_DATABASE"))
-    USERNAME = str(os.environ.get("DB_USERNAME"))
-    PASSWORD = str(os.environ.get("DB_PASSWORD"))
+    # 1. Cek apakah ada DATABASE_URL (Otomatis dari Railway)
+    database_url = os.environ.get("DATABASE_URL")
+    
+    if database_url:
+        if database_url.startswith("mysql://"):
+            database_url = database_url.replace("mysql://", "mysql+pymysql://", 1)
+        
+        SQLALCHEMY_DATABASE_URI = database_url
+    
+    # 2. Jika tidak ada DATABASE_URL (Berarti sedang di Laptop/Local)
+    else:
+        HOST = os.environ.get("DB_HOST", "localhost")
+        DATABASE = os.environ.get("DB_DATABASE", "test_db")
+        USERNAME = os.environ.get("DB_USERNAME", "root")
+        PASSWORD = os.environ.get("DB_PASSWORD", "")
+        
+        SQLALCHEMY_DATABASE_URI = f'mysql+pymysql://{USERNAME}:{PASSWORD}@{HOST}/{DATABASE}'
 
-    SQLALCHEMY_DATABASE_URI = 'mysql+pymysql://'+ USERNAME +':' + PASSWORD +'@' + HOST +'/' + DATABASE
     SQLALCHEMY_TRACK_MODIFICATIONS = False
     SQLALCHEMY_RECORD_QUERIES = True
 

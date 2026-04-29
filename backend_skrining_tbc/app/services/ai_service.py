@@ -20,13 +20,12 @@ class AIService:
 
     def train_model(self):
         try:
-            # Sesuaikan path dataset dengan struktur foldermu
-            # Asumsi: dataset ada di folder 'app/ml_models'
+            #path dataset
             base_dir = os.path.abspath(os.path.dirname(__file__)) # folder services
             app_dir = os.path.dirname(base_dir) # folder app
             dataset_path = os.path.join(app_dir, 'ml_models', 'tuberculosis_xray_dataset.csv')
             
-            print(f"⏳ Training AI Model dari: {dataset_path} ...")
+            print(f"Training AI Model dari: {dataset_path} ...")
             df = pd.read_csv(dataset_path)
 
             # --- Preprocessing ---
@@ -54,10 +53,10 @@ class AIService:
 
             self.model = RandomForestClassifier(n_estimators=100, random_state=42, class_weight='balanced')
             self.model.fit(X, y)
-            print("✅ Model AI Random Forest Siap!")
+            print("Model AI Random Forest Siap!")
             
         except Exception as e:
-            print(f"❌ Error Training AI: {e}")
+            print(f"Error Training AI: {e}")
 
     def predict(self, form_data):
         if not self.model:
@@ -70,10 +69,9 @@ class AIService:
             return yes_score if str(val).lower() in ['ya', 'iya', 'true', '1', 'yes'] else 0
 
         row = {}
-        # Mapping field form kamu ke kolom dataset
-        # Nilai default (score) disesuaikan agar AI mengerti (misal Batuk 'Ya' = 5/Moderate)
+        # Mapping field form  kolom dataset
         row['Age'] = float(form_data.get('usia', 30))
-        # Jika form pakai Laki-laki/Perempuan, dataset pakai 1/0
+        # Laki-laki = 1 / Perempuan = 0
         row['Gender'] = 1 if str(form_data.get('jenis_kelamin')).lower() == 'laki-laki' else 0
         
         row['Cough_Severity'] = parse_yn(form_data.get('batuk'), 5) 

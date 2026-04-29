@@ -251,9 +251,11 @@ export const Navbar02 = React.forwardRef<HTMLElement, Navbar02Props>(
             )}
             {/* Main nav */}
             <div className="flex items-center gap-6">
-              <button className="flex items-center space-x-2 text-primary hover:text-primary/90 transition-colors cursor-pointer">
-                <span className="hidden font-bold text-xl sm:inline-block">TBCheck</span>
-              </button>
+              <Link href="/user">
+                <button className="flex items-center space-x-2 text-primary hover:text-primary/90 transition-colors cursor-pointer">
+                  <span className="hidden font-bold text-xl sm:inline-block">TBCheck</span>
+                </button>
+              </Link>
               {/* Navigation menu */}
               {!isMobile && (
                 <NavigationMenu className="flex">

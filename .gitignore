@@ -25,3 +25,6 @@ Thumbs.db
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+
+*.h5
+backend_skrining_tbc/app/ml_models/

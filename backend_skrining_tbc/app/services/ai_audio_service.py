@@ -40,22 +40,24 @@ custom_objects_patch = {
 
 
 # ==========================================
-# INISIALISASI MODEL AI GLOBAL
+# INISIALISASI MODEL AI GLOBAL (VERSI BYPASS DARURAT)
 # ==========================================
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 MODELS_DIR = os.path.join(BASE_DIR, 'ml_models')
 
-print("⏳ Memuat model AI Audio (CNN & DenseNet)...")
-try:
-    # Menggunakan custom_objects_patch agar model bisa dimuat dengan aman
-    MODELS = {
-        "cnn": load_model(os.path.join(MODELS_DIR, 'model_custom4_cnn.h5'), custom_objects=custom_objects_patch),
-        "densenet": load_model(os.path.join(MODELS_DIR, 'model_densenet.h5'), custom_objects=custom_objects_patch)
-    }
-    print("✅ Model AI Audio berhasil dimuat!")
-except Exception as e:
-    print(f"❌ Gagal memuat model Audio: {e}")
-    MODELS = {}
+print("⏳ Bypass load model AI Audio (Hemat RAM untuk Railway)...")
+# MATIKAN SEMENTARA AGAR SERVER TIDAK MATI
+# try:
+#     # Menggunakan custom_objects_patch agar model bisa dimuat dengan aman
+#     MODELS = {
+#         "cnn": load_model(os.path.join(MODELS_DIR, 'model_custom4_cnn.h5'), custom_objects=custom_objects_patch),
+#         "densenet": load_model(os.path.join(MODELS_DIR, 'model_densenet.h5'), custom_objects=custom_objects_patch)
+#     }
+#     print("✅ Model AI Audio berhasil dimuat!")
+# except Exception as e:
+#     print(f"❌ Gagal memuat model Audio: {e}")
+
+MODELS = {} # Set kosong agar server ringan
 
 class AIAudioService:
     @staticmethod

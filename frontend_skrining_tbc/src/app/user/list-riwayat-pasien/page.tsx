@@ -149,7 +149,7 @@ function ListRiwayatPasienContent() {
                                             <CardDescription className="mt-1">
                                                 Metode:{" "}
                                                 <span className="font-medium text-foreground">
-                                                    AI + Klinis
+                                                    {item.metode_skrining || "Form Only"}
                                                 </span>
                                             </CardDescription>
                                         </div>

@@ -25,8 +25,6 @@ from app.model import user
 from app.model import rujukan
 from app.model import token_block_list
 
-from app.controller.auth_controller import auth_bp
-app.register_blueprint (auth_bp, url_prefix='/auth')
 
 from app import routes
 from app.routes import *

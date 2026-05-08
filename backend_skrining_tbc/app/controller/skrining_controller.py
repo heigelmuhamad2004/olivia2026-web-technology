@@ -378,6 +378,11 @@ def single_object(skrining, pasien):
         "sesak_napas_tanpa_nyeri_dada": skrining.sesak_napas_tanpa_nyeri_dada,
         "ada_pembesaran_getah_bening_dileher": skrining.ada_pembengkakan_kelenjar_getah_bening_pada_leher_atau_ketiak,
 
+        # --- TAMBAHAN DATA AI SUARA ---
+        "skor_suara_ai": skrining.skor_suara_ai,
+        "metode_skrining": skrining.metode_skrining,
+        "gradcam_image": skrining.gradcam_image,
+
         # --- TAMBAHAN UNTUK FITUR SURAT RUJUKAN ---
         "rujukan_status": status_rujukan,          
         "rujukan_verified_at": tgl_verifikasi,     

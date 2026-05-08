@@ -21,6 +21,19 @@ const nextConfig: NextConfig = {
     // Ini membolehkan build sukses meski ada error ESLint
     ignoreDuringBuilds: true,
   },
+  // ========================================================
+  // JEMBATAN INTERNAL (PROXY) FRONTEND KE BACKEND DOCKER
+  // ========================================================
+  async rewrites() {
+    return [
+      {
+        // Semua request ke "/api_flask/..." di browser...
+        source: '/api_flask/:path*',
+        // ...akan diteruskan secara rahasia ke service "backend-ai" di Docker
+        destination: 'http://backend-ai:5000/:path*', 
+      },
+    ];
+  },
 };
 
 export default withPWA(nextConfig);

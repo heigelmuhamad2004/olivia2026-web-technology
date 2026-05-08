@@ -175,7 +175,16 @@ function ScreeningFormContent() {
       const result = await createSkrining(values, pasienId)
       console.log("Skrining berhasil dibuat:", result)
       alert("Data skrining berhasil disimpan!")
-      router.push(`/user/hasil-screening?pasienId=${pasienId}`)
+      
+      // Tangkap ID skrining baru dari response API
+      const idSkriningBaru = result?.data?.id || result?.id || result?.data_response?.id || result?.data?.data_response?.id;
+      
+      // Redirect berdasarkan gejala batuk
+      if (values.batuk === "Ya") {
+        router.push(`/user/screening-suara?skriningId=${idSkriningBaru}&pasienId=${pasienId}`)
+      } else {
+        router.push(`/user/hasil-screening?pasienId=${pasienId}&skriningId=${idSkriningBaru}`)
+      }
     } catch (error) {
       console.error("Terjadi kesalahan saat menyimpan data:", error)
       alert("Terjadi kesalahan saat menyimpan data. Silakan coba lagi.")

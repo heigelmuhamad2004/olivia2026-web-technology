@@ -2,9 +2,11 @@ from app import app, db
 from sqlalchemy import text
 from app.controller import pasien_controller
 from app.controller import skrining_controller
+from app.controller import skrining_audio_controller
 from app.controller import wilayah_controller
 from flask import Blueprint
 from app.controller import auth_controller
+from app.controller.auth_controller import auth_bp
 # Impor user_controller yang baru
 from app.controller.user_controller import user_bp
 from app.controller import admin_puskesmas_controller
@@ -95,6 +97,10 @@ def get_skrining_statistik():
 def get_skrining_by_pasien(pasien_id):
     return skrining_controller.get_by_pasien(pasien_id)
 
+@app.route('/skrining/audio', methods=['POST'])
+def process_audio_skrining():
+    return skrining_audio_controller.process_audio_skrining()
+
 
 #WILAYAH ROUTES
 @app.route('/provinsi', methods=['GET'])
@@ -126,4 +132,5 @@ def get_skrining_detail(id):
 
 # Daftarkan Blueprint untuk user management dengan prefix /users
 app.register_blueprint(user_bp, url_prefix='/users')
+app.register_blueprint(auth_bp, url_prefix='/auth')
 

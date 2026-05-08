@@ -76,6 +76,9 @@ export interface SkriningRiwayat {
   berkeringat_malam_tanpa_kegiatan: string
   sesak_napas_tanpa_nyeri_dada: string
   ada_pembesaran_getah_bening_dileher: string
+  skor_suara_ai?: number | null
+  metode_skrining?: string
+  gradcam_image?: string | null
 }
 
 export const getRiwayatSkriningByPasien = async (

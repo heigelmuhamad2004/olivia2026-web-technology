@@ -1,21 +1,24 @@
 "use client"
 
-import { useState, useRef, useEffect } from "react"
+import { useState, useRef, useEffect, Suspense } from "react"
+import { useSearchParams, useRouter } from "next/navigation"
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent } from "@/components/ui/card"
-import { Upload, Mic, Search, Music, X, Loader2, AlertTriangle, CheckCircle2 } from "lucide-react"
+import { Upload, Mic, Search, Music, X, Loader2, AlertTriangle } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { SkriningSuaraService, SkriningData } from "@/app/services/skrining-suara.services"
-
-// IMPORT KOMPONEN ANIMASI YANG BARU DIBUAT
-// Sesuaikan path import dengan lokasi sebenarnya di proyekmu
-import { LayerAnimation } from "@/components/LayerAnimation" 
+import { LayerAnimation } from "@/components/LayerAnimation"
+import { ResultVisualizer } from "@/components/ResultVisualizer"
 
 type Algorithm = "cnn" | "densenet"
 
-export default function DeteksiSuara() {
+function DeteksiSuaraContent() {
+  const searchParams = useSearchParams()
+  const router = useRouter()
+  const skriningId = searchParams.get("skriningId")
+  const pasienId = searchParams.get("pasienId")
   const [activeTab, setActiveTab] = useState<"upload" | "record">("upload")
   const [uploadedFile, setUploadedFile] = useState<File | null>(null)
   const [recordedBlob, setRecordedBlob] = useState<Blob | null>(null)
@@ -30,9 +33,12 @@ export default function DeteksiSuara() {
   const [hasilSkrining, setHasilSkrining] = useState<SkriningData | null>(null)
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
 
-  // STATE BARU UNTUK KONTROL ANIMASI
+  // ✅ PERBAIKAN: showLayerAnimation mengontrol kapan LayerAnimation dirender
+  // showResult mengontrol kapan ResultVisualizer muncul (setelah animasi selesai)
   const [showLayerAnimation, setShowLayerAnimation] = useState(false)
-  const [currentLayerState, setCurrentLayerState] = useState<number>(0)
+  const [showResult, setShowResult] = useState(false)
+  // pendingResult menyimpan data sementara sampai animasi selesai
+  const [pendingResult, setPendingResult] = useState<SkriningData | null>(null)
 
   const fileInputRef = useRef<HTMLInputElement>(null)
   const mediaRecorderRef = useRef<MediaRecorder | null>(null)
@@ -76,13 +82,12 @@ export default function DeteksiSuara() {
 
   async function toggleRecord() {
     if (!isRecording) {
-      // Mengubah pengaturan mic agar lebih mentah (raw audio)
-      const stream = await navigator.mediaDevices.getUserMedia({ 
+      const stream = await navigator.mediaDevices.getUserMedia({
         audio: {
           echoCancellation: false,
           noiseSuppression: false,
-          autoGainControl: false
-        } 
+          autoGainControl: false,
+        },
       })
       const mr = new MediaRecorder(stream)
       mediaRecorderRef.current = mr
@@ -112,48 +117,59 @@ export default function DeteksiSuara() {
   }
 
   async function handleDeteksi() {
-    const audioData = activeTab === "upload" ? uploadedFile : recordedBlob;
-    if (!audioData) return;
+    if (!skriningId) {
+      setErrorMsg("ID Skrining tidak ditemukan. Silakan isi form skrining kesehatan terlebih dahulu.")
+      return
+    }
 
-    // Reset State
+    const audioData = activeTab === "upload" ? uploadedFile : recordedBlob
+    if (!audioData) return
+
+    // ✅ Reset semua state hasil sebelumnya
     setIsAnalyzing(true)
     setHasilSkrining(null)
     setErrorMsg(null)
-    
-    // Mulai UI Animasi
+    setShowResult(false)
+    setPendingResult(null)
     setShowLayerAnimation(true)
-    setCurrentLayerState(0)
 
-    const fileName = activeTab === "upload" ? uploadedFile?.name || "upload.wav" : "rekaman_langsung.webm";
+    const fileName =
+      activeTab === "upload"
+        ? uploadedFile?.name || "upload.wav"
+        : "rekaman_langsung.webm"
 
     try {
-      const response = await SkriningSuaraService.deteksi(audioData, fileName, selectedAlgo);
+      const response = await SkriningSuaraService.deteksi(audioData, fileName, selectedAlgo, skriningId)
 
       if (response.status === "success" && response.data) {
-        
-        // --- LOGIKA SIMULASI JEDA ANIMASI ---
-        // Kita membuat jeda agar user bisa menikmati animasi bergeraknya
-        const totalLayers = selectedAlgo === "cnn" ? 4 : 5;
-        
-        for (let i = 1; i <= totalLayers; i++) {
-          await new Promise(resolve => setTimeout(resolve, 500)); // Berhenti 0.5 detik per kotak layer
-          setCurrentLayerState(i);
-        }
-        
-        // Jeda kecil sebelum kotak hasil akhir turun
-        await new Promise(resolve => setTimeout(resolve, 300)); 
-        // ------------------------------------
-
-        setHasilSkrining(response.data)
+        // ✅ Simpan data ke pendingResult — LayerAnimation yang akan trigger showResult
+        // via onComplete setelah animasinya sendiri selesai
+        setPendingResult(response.data)
       } else {
         setErrorMsg(response.message || "Gagal mendeteksi suara dari server.")
         setShowLayerAnimation(false)
       }
-    } catch (error) {
+    } catch {
       setErrorMsg("Terjadi kesalahan sistem saat menghubungi server AI.")
       setShowLayerAnimation(false)
     } finally {
       setIsAnalyzing(false)
+    }
+  }
+
+  function handleAnimationComplete() {
+    if (pendingResult) {
+      setHasilSkrining(pendingResult)
+      setPendingResult(null)
+    }
+    setShowResult(true)
+
+    // Redirect ke hasil-screening setelah animasi dan deteksi selesai
+    if (pasienId) {
+      // Kasih sedikit delay agar user bisa melihat bahwa animasi selesai
+      setTimeout(() => {
+        router.push(`/user/hasil-screening?pasienId=${pasienId}&skriningId=${skriningId}`)
+      }, 500)
     }
   }
 
@@ -168,8 +184,7 @@ export default function DeteksiSuara() {
   }, [])
 
   return (
-    <div className="max-w-2xl mx-auto py-10 px-4 space-y-6">
-      {/* ... (Header dan Step 1 & 2 tetap SAMA PERSIS seperti sebelumnya) ... */}
+    <div className="max-w-4xl mx-auto py-10 px-4 space-y-6">
       <div>
         <h1 className="text-2xl font-medium text-foreground">Deteksi Suara AI</h1>
         <p className="text-sm text-muted-foreground mt-1">
@@ -177,6 +192,7 @@ export default function DeteksiSuara() {
         </p>
       </div>
 
+      {/* Step 1: Sumber suara */}
       <Card>
         <CardContent className="pt-5">
           <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-4 flex items-center gap-2">
@@ -242,13 +258,8 @@ export default function DeteksiSuara() {
                       <X className="w-4 h-4" />
                     </Button>
                   </div>
-                  
                   {uploadPreviewUrl && (
-                    <audio 
-                      controls 
-                      src={uploadPreviewUrl} 
-                      className="w-full h-10" 
-                    />
+                    <audio controls src={uploadPreviewUrl} className="w-full h-10" />
                   )}
                 </div>
               )}
@@ -278,8 +289,8 @@ export default function DeteksiSuara() {
                   {isRecording
                     ? "Sedang merekam batuk..."
                     : recordedBlob
-                    ? "Rekaman selesai"
-                    : "Tekan untuk mulai rekam"}
+                      ? "Rekaman selesai"
+                      : "Tekan untuk mulai rekam"}
                 </p>
                 {isRecording && (
                   <p className="text-xs text-muted-foreground mt-1">{formatTime(seconds)}</p>
@@ -300,13 +311,8 @@ export default function DeteksiSuara() {
                       <X className="w-4 h-4" />
                     </Button>
                   </div>
-
                   {recordPreviewUrl && (
-                    <audio 
-                      controls 
-                      src={recordPreviewUrl} 
-                      className="w-full h-10" 
-                    />
+                    <audio controls src={recordPreviewUrl} className="w-full h-10" />
                   )}
                 </div>
               )}
@@ -315,6 +321,7 @@ export default function DeteksiSuara() {
         </CardContent>
       </Card>
 
+      {/* Step 2: Pilih algoritma */}
       <Card className={cn("transition-opacity", !hasAudio && "opacity-40 pointer-events-none")}>
         <CardContent className="pt-5">
           <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-4 flex items-center gap-2">
@@ -371,6 +378,7 @@ export default function DeteksiSuara() {
         </CardContent>
       </Card>
 
+      {/* Tombol deteksi */}
       <div className="flex justify-end">
         <Button
           size="lg"
@@ -392,15 +400,15 @@ export default function DeteksiSuara() {
         </Button>
       </div>
 
-      {/* --- MEMANGGIL KOMPONEN LAYER ANIMATION --- */}
-      {showLayerAnimation && !hasilSkrining && !errorMsg && (
-        <LayerAnimation 
-          algoType={selectedAlgo} 
-          currentLayer={currentLayerState} 
+      {/* ✅ LayerAnimation hanya muncul saat dibutuhkan, onComplete menampilkan hasil */}
+      {showLayerAnimation && (
+        <LayerAnimation
+          algoType={selectedAlgo}
+          onComplete={handleAnimationComplete}
         />
       )}
 
-      {/* Step 3: Hasil Skrining / Error */}
+      {/* Error */}
       {errorMsg && (
         <div className="bg-destructive/10 text-destructive text-sm p-4 rounded-xl border border-destructive/20 flex items-center gap-3 animate-in fade-in">
           <AlertTriangle className="w-5 h-5 shrink-0" />
@@ -408,55 +416,18 @@ export default function DeteksiSuara() {
         </div>
       )}
 
-      {hasilSkrining && (
-        <Card className="border-2 border-primary/20 bg-gradient-to-b from-background to-primary/5 animate-in fade-in slide-in-from-bottom-4 duration-500">
-          <CardContent className="pt-6">
-            <div className="text-center space-y-4">
-              <div className="inline-flex items-center justify-center p-3 bg-background rounded-full border shadow-sm mb-2">
-                {hasilSkrining.diagnosis === "Suspek TBC" ? (
-                  <AlertTriangle className="w-8 h-8 text-orange-500" />
-                ) : (
-                  <CheckCircle2 className="w-8 h-8 text-green-500" />
-                )}
-              </div>
-              
-              <div>
-                <p className="text-sm font-medium text-muted-foreground uppercase tracking-wider mb-1">
-                  Hasil Analisis ({hasilSkrining.algoritma})
-                </p>
-                <h3 className={cn(
-                  "text-2xl font-bold",
-                  hasilSkrining.diagnosis === "Suspek TBC" ? "text-orange-600 dark:text-orange-500" : "text-green-600 dark:text-green-500"
-                )}>
-                  {hasilSkrining.diagnosis}
-                </h3>
-              </div>
-
-              <div className="bg-background rounded-lg border p-4 max-w-sm mx-auto">
-                <div className="flex justify-between items-center mb-2">
-                  <span className="text-sm text-muted-foreground">Tingkat Keyakinan AI:</span>
-                  <span className="text-sm font-bold text-foreground">
-                    {hasilSkrining.confidence.toFixed(2)}%
-                  </span>
-                </div>
-                <div className="w-full bg-secondary rounded-full h-2.5 overflow-hidden">
-                  <div 
-                    className={cn(
-                      "h-2.5 rounded-full transition-all duration-1000",
-                      hasilSkrining.diagnosis === "Suspek TBC" ? "bg-orange-500" : "bg-green-500"
-                    )}
-                    style={{ width: `${hasilSkrining.confidence}%` }}
-                  ></div>
-                </div>
-              </div>
-
-              <p className="text-xs text-muted-foreground max-w-md mx-auto mt-4">
-                Catatan: Hasil ini adalah skrining awal berbasis kecerdasan buatan dan bukan merupakan diagnosis medis final. Harap konsultasikan ke dokter untuk pemeriksaan lebih lanjut.
-              </p>
-            </div>
-          </CardContent>
-        </Card>
+      {/* ✅ Hasil hanya muncul setelah animasi selesai (showResult = true) */}
+      {showResult && hasilSkrining && (
+        <ResultVisualizer data={hasilSkrining} />
       )}
     </div>
+  )
+}
+
+export default function DeteksiSuara() {
+  return (
+    <Suspense fallback={<div>Loading...</div>}>
+      <DeteksiSuaraContent />
+    </Suspense>
   )
 }

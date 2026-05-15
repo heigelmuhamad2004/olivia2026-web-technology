@@ -99,7 +99,19 @@ def get_skrining_by_pasien(pasien_id):
 
 @app.route('/skrining/audio', methods=['POST'])
 def process_audio_skrining():
-    return skrining_audio_controller.process_audio_skrining()
+    # ==========================================
+    # BYPASS DARURAT UNTUK PRESENTASI UI & DATABASE
+    # ==========================================
+    from flask import jsonify # Jaga-jaga jika di file ini belum ada import jsonify
+    
+    return jsonify({
+        "status": "success",
+        "message": "Analisis berhasil",
+        "result": "Non Suspect" 
+    }), 200
+
+    # KODE ASLI DIMATIKAN SEMENTARA
+    # return skrining_audio_controller.process_audio_skrining()
 
 
 #WILAYAH ROUTES

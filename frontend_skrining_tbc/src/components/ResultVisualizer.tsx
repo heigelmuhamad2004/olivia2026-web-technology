@@ -54,83 +54,7 @@ export function ResultVisualizer({ data }: { data: ResultProps }) {
         </div>
       </div>
 
-      {/* 2. Probabilitas + Heatmap */}
-      <div className="grid gap-4 md:grid-cols-2">
-        <Card className="border">
-          <CardContent className="pt-5">
-            <p className="mb-4 flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-              <Activity className="h-3.5 w-3.5" />
-              Probabilitas
-            </p>
-            <div className="space-y-4">
-              <div>
-                <div className="mb-1.5 flex justify-between text-sm font-medium">
-                  <span className="text-red-500">Suspek TBC</span>
-                  <span className="font-semibold text-red-500">{data.prob_tbc.toFixed(2)}%</span>
-                </div>
-                <div className="h-2.5 w-full overflow-hidden rounded-full bg-red-100">
-                  <div
-                    className="h-full rounded-full bg-red-500 transition-all duration-500"
-                    style={{ width: `${data.prob_tbc}%` }}
-                  />
-                </div>
-              </div>
-              <div>
-                <div className="mb-1.5 flex justify-between text-sm font-medium">
-                  <span className="text-green-600">Normal</span>
-                  <span className="font-semibold text-green-600">{data.prob_normal.toFixed(2)}%</span>
-                </div>
-                <div className="h-2.5 w-full overflow-hidden rounded-full bg-green-100">
-                  <div
-                    className="h-full rounded-full bg-green-500 transition-all duration-500"
-                    style={{ width: `${data.prob_normal}%` }}
-                  />
-                </div>
-              </div>
-            </div>
-            <div className="mt-5">
-              <span
-                className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium ${
-                  isSuspect ? "bg-red-50 text-red-700" : "bg-green-50 text-green-700"
-                }`}
-              >
-                <span className={`h-1.5 w-1.5 rounded-full ${isSuspect ? "bg-red-500" : "bg-green-500"}`} />
-                Diagnosa: {data.diagnosis}
-              </span>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="border">
-          <CardContent className="pt-5">
-            <p className="mb-4 flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-              <FileImage className="h-3.5 w-3.5" />
-              Heatmap Grad-CAM
-            </p>
-            <div className="overflow-hidden rounded-xl bg-muted">
-              <img
-                src={data.gradcam_image}
-                alt="Heatmap spektrogram Grad-CAM"
-                className="h-auto w-full object-cover"
-              />
-            </div>
-            <div className="mt-3 flex items-center justify-center gap-5">
-              {[
-                { color: "bg-blue-500", label: "Tidak aktif" },
-                { color: "bg-orange-400", label: "Sedang" },
-                { color: "bg-red-500", label: "Paling aktif" },
-              ].map(({ color, label }) => (
-                <div key={label} className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                  <span className={`h-2.5 w-2.5 rounded-sm ${color}`} />
-                  {label}
-                </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* 3. Transparansi matematika */}
+            {/* 3. Transparansi matematika */}
       <Card className="border">
         <CardContent className="pt-5">
           <p className="mb-1 flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
@@ -211,6 +135,84 @@ export function ResultVisualizer({ data }: { data: ResultProps }) {
           </div>
         </CardContent>
       </Card>
+
+      {/* 2. Probabilitas + Heatmap */}
+      <div className="grid gap-4 md:grid-cols-2">
+        <Card className="border">
+          <CardContent className="pt-5">
+            <p className="mb-4 flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+              <Activity className="h-3.5 w-3.5" />
+              Probabilitas
+            </p>
+            <div className="space-y-4">
+              <div>
+                <div className="mb-1.5 flex justify-between text-sm font-medium">
+                  <span className="text-red-500">Suspek TBC</span>
+                  <span className="font-semibold text-red-500">{data.prob_tbc.toFixed(2)}%</span>
+                </div>
+                <div className="h-2.5 w-full overflow-hidden rounded-full bg-red-100">
+                  <div
+                    className="h-full rounded-full bg-red-500 transition-all duration-500"
+                    style={{ width: `${data.prob_tbc}%` }}
+                  />
+                </div>
+              </div>
+              <div>
+                <div className="mb-1.5 flex justify-between text-sm font-medium">
+                  <span className="text-green-600">Normal</span>
+                  <span className="font-semibold text-green-600">{data.prob_normal.toFixed(2)}%</span>
+                </div>
+                <div className="h-2.5 w-full overflow-hidden rounded-full bg-green-100">
+                  <div
+                    className="h-full rounded-full bg-green-500 transition-all duration-500"
+                    style={{ width: `${data.prob_normal}%` }}
+                  />
+                </div>
+              </div>
+            </div>
+            <div className="mt-5">
+              <span
+                className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium ${
+                  isSuspect ? "bg-red-50 text-red-700" : "bg-green-50 text-green-700"
+                }`}
+              >
+                <span className={`h-1.5 w-1.5 rounded-full ${isSuspect ? "bg-red-500" : "bg-green-500"}`} />
+                Diagnosa: {data.diagnosis}
+              </span>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="border">
+          <CardContent className="pt-5">
+            <p className="mb-4 flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+              <FileImage className="h-3.5 w-3.5" />
+              Heatmap Grad-CAM
+            </p>
+            <div className="overflow-hidden rounded-xl bg-muted">
+              <img
+                src={data.gradcam_image}
+                alt="Heatmap spektrogram Grad-CAM"
+                className="h-auto w-full object-cover"
+              />
+            </div>
+            <div className="mt-3 flex items-center justify-center gap-5">
+              {[
+                { color: "bg-blue-500", label: "Tidak aktif" },
+                { color: "bg-orange-400", label: "Sedang" },
+                { color: "bg-red-500", label: "Paling aktif" },
+              ].map(({ color, label }) => (
+                <div key={label} className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                  <span className={`h-2.5 w-2.5 rounded-sm ${color}`} />
+                  {label}
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+
     </div>
   )
 }

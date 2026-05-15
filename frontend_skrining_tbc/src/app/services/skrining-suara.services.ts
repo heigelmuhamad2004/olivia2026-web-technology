@@ -6,7 +6,15 @@ export interface SkriningData {
   skrining_id?: number;
   hasil_deteksi_akhir: string;
   probabilitas_tbc: number;
-  gradcam_image: string;
+  probabilitas_normal: number;
+  spectrogram_image: string;
+  math_details: {
+    z_tbc: number;
+    z_norm: number;
+    exp_tbc: number;
+    exp_norm: number;
+    sum_exp: number;
+  };
 }
 
 export interface SkriningResponse {

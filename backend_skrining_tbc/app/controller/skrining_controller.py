@@ -9,7 +9,7 @@ from flask_jwt_extended import jwt_required, get_jwt
 from datetime import datetime
 
 
-# ✅ USER menambahkan skrining baru
+# USER menambahkan skrining baru
 @jwt_required()
 def create_skrining():
     try:
@@ -382,6 +382,7 @@ def single_object(skrining, pasien):
         "skor_suara_ai": skrining.skor_suara_ai,
         "metode_skrining": skrining.metode_skrining,
         "gradcam_image": skrining.gradcam_image,
+        "detail_matematika": skrining.detail_matematika,
 
         # --- TAMBAHAN UNTUK FITUR SURAT RUJUKAN ---
         "rujukan_status": status_rujukan,          

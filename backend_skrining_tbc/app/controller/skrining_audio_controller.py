@@ -47,7 +47,8 @@ def process_audio_skrining():
             # 5. Update Database Skrining
             skrining.metode_skrining = f"Hybrid (Form + {model_type.upper()})"
             skrining.skor_suara_ai = hasil_ai["prob_tbc"]
-            skrining.gradcam_image = hasil_ai["gradcam_image"]
+            skrining.gradcam_image = hasil_ai["spectrogram_image"]  # Simpan spektrogram ke gradcam_image
+            skrining.detail_matematika = hasil_ai["math_details"]
 
             # Logika Hybrid: Jika suara mendeteksi Suspek TBC, status akhir diprioritaskan jadi TERDUGA TBC
             if hasil_ai["diagnosis"] == "Suspek TBC":
@@ -71,7 +72,9 @@ def process_audio_skrining():
                 "skrining_id": skrining.id,
                 "hasil_deteksi_akhir": skrining.hasil_deteksi,
                 "probabilitas_tbc": hasil_ai["prob_tbc"],
-                "gradcam_image": hasil_ai["gradcam_image"]
+                "probabilitas_normal": hasil_ai["prob_normal"],
+                "spectrogram_image": hasil_ai["spectrogram_image"],
+                "math_details": hasil_ai["math_details"]
             }, "Skrining suara berhasil diintegrasikan dengan form.")
 
         except ValueError as ve:

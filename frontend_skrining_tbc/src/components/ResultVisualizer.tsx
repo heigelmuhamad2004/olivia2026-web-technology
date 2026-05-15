@@ -2,25 +2,32 @@
 import { Card, CardContent } from "@/components/ui/card"
 import { AlertTriangle, CheckCircle, Activity, FileImage, FileText, Info } from "lucide-react"
 
+interface MathDetails {
+  z_tbc: number
+  z_norm: number
+  exp_tbc: number
+  exp_norm: number
+  sum_exp: number
+}
+
 interface ResultProps {
   diagnosis: string
-  confidence: number
   prob_tbc: number
   prob_normal: number
-  gradcam_image: string
+  spectrogram_image?: string 
+  gradcam_image?: string // Fallback jika menggunakan data lama
+  math_details: MathDetails 
   algoritma: string
 }
 
 export function ResultVisualizer({ data }: { data: ResultProps }) {
   const isSuspect = data.diagnosis === "Suspek TBC"
+  
+  // Jika karena alasan tertentu math_details gagal termuat, kita berikan nilai default (fallback aman)
+  const math = data.math_details || { z_tbc: 0, z_norm: 0, exp_tbc: 0, exp_norm: 0, sum_exp: 1 }
 
-  const p_tbc = Math.max(data.prob_tbc / 100, 0.0001)
-  const p_norm = Math.max(data.prob_normal / 100, 0.0001)
-  const z_tbc = Math.log(p_tbc).toFixed(3)
-  const z_norm = Math.log(p_norm).toFixed(3)
-  const exp_tbc = Math.exp(parseFloat(z_tbc)).toFixed(3)
-  const exp_norm = Math.exp(parseFloat(z_norm)).toFixed(3)
-  const sum_exp = (parseFloat(exp_tbc) + parseFloat(exp_norm)).toFixed(3)
+  // Mencari confidence rate terbesar untuk ditampilkan di banner utama
+  const confidence = isSuspect ? data.prob_tbc : data.prob_normal
 
   return (
     <div className="space-y-4 animate-in fade-in zoom-in duration-500">
@@ -49,94 +56,12 @@ export function ResultVisualizer({ data }: { data: ResultProps }) {
           </p>
         </div>
         <div className="text-right">
-          <p className="text-3xl font-bold text-primary">{data.confidence.toFixed(1)}%</p>
+          <p className="text-3xl font-bold text-primary">{confidence.toFixed(1)}%</p>
           <p className="text-xs text-muted-foreground">tingkat keyakinan AI</p>
         </div>
       </div>
 
-            {/* 3. Transparansi matematika */}
-      <Card className="border">
-        <CardContent className="pt-5">
-          <p className="mb-1 flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-            <FileText className="h-3.5 w-3.5" />
-            Cara AI menghitung keputusan ini
-          </p>
-          <p className="mb-5 text-xs text-muted-foreground">
-            AI mengolah suara melalui 3 tahap matematika menggunakan arsitektur {data.algoritma}.
-          </p>
-          <div className="grid grid-cols-1 gap-3 md:grid-cols-[1fr_auto_1fr_auto_1fr]">
-            <div className="rounded-xl border bg-muted/40 p-4">
-              <p className="mb-3 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-                Tahap 1 — skor mentah (logits)
-              </p>
-              <div className="space-y-1.5 font-mono text-xs">
-                <div className="flex justify-between gap-4">
-                  <span className="text-muted-foreground">Z TBC</span>
-                  <span className="font-semibold text-primary">= {z_tbc}</span>
-                </div>
-                <div className="flex justify-between gap-4">
-                  <span className="text-muted-foreground">Z Normal</span>
-                  <span className="font-semibold text-primary">= {z_norm}</span>
-                </div>
-              </div>
-            </div>
-            <div className="hidden items-center pt-5 text-muted-foreground md:flex">
-              <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <line x1="5" y1="12" x2="19" y2="12" /><polyline points="12 5 19 12 12 19" />
-              </svg>
-            </div>
-            <div className="rounded-xl border bg-muted/40 p-4">
-              <p className="mb-3 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-                Tahap 2 — eksponensial (e^z)
-              </p>
-              <div className="space-y-1.5 font-mono text-xs">
-                <div className="flex justify-between gap-4">
-                  <span className="text-muted-foreground truncate">e^({z_tbc})</span>
-                  <span className="font-semibold text-primary">= {exp_tbc}</span>
-                </div>
-                <div className="flex justify-between gap-4">
-                  <span className="text-muted-foreground truncate">e^({z_norm})</span>
-                  <span className="font-semibold text-primary">= {exp_norm}</span>
-                </div>
-                <hr className="border-border" />
-                <div className="flex justify-between gap-4">
-                  <span className="text-muted-foreground">Total (Σ)</span>
-                  <span className="font-semibold text-primary">= {sum_exp}</span>
-                </div>
-              </div>
-            </div>
-            <div className="hidden items-center pt-5 text-muted-foreground md:flex">
-              <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <line x1="5" y1="12" x2="19" y2="12" /><polyline points="12 5 19 12 12 19" />
-              </svg>
-            </div>
-            <div className="rounded-xl border bg-muted/40 p-4">
-              <p className="mb-3 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-                Tahap 3 — hasil softmax (%)
-              </p>
-              <div className="space-y-2">
-                <div className="rounded-lg bg-red-50 p-2.5 font-mono text-xs">
-                  <p className="text-[10px] text-red-400">P(TBC) = {exp_tbc} / {sum_exp}</p>
-                  <p className="mt-0.5 text-base font-bold text-red-600">= {data.prob_tbc.toFixed(2)}%</p>
-                </div>
-                <div className="rounded-lg bg-green-50 p-2.5 font-mono text-xs">
-                  <p className="text-[10px] text-green-500">P(Normal) = {exp_norm} / {sum_exp}</p>
-                  <p className="mt-0.5 text-base font-bold text-green-600">= {data.prob_normal.toFixed(2)}%</p>
-                </div>
-              </div>
-            </div>
-          </div>
-          <div className="mt-4 flex items-start gap-2.5 rounded-xl border border-primary/20 bg-primary/5 px-4 py-3">
-            <Info className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
-            <p className="text-xs leading-relaxed text-primary/80">
-              Semakin tinggi persentase suatu kategori, semakin yakin AI bahwa rekaman termasuk
-              kategori tersebut. Hasil ini bukan diagnosis medis resmi — selalu konsultasikan ke dokter.
-            </p>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* 2. Probabilitas + Heatmap */}
+      {/* 2. Probabilitas + Heatmap/Spektrogram */}
       <div className="grid gap-4 md:grid-cols-2">
         <Card className="border">
           <CardContent className="pt-5">
@@ -187,32 +112,114 @@ export function ResultVisualizer({ data }: { data: ResultProps }) {
           <CardContent className="pt-5">
             <p className="mb-4 flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
               <FileImage className="h-3.5 w-3.5" />
-              Heatmap Grad-CAM
+              Pola Frekuensi Spektrogram
             </p>
-            <div className="overflow-hidden rounded-xl bg-muted">
+            <div className="overflow-hidden rounded-xl bg-muted flex justify-center items-center">
               <img
-                src={data.gradcam_image}
-                alt="Heatmap spektrogram Grad-CAM"
-                className="h-auto w-full object-cover"
+                src={data.spectrogram_image || data.gradcam_image} 
+                alt="Visualisasi Spektrogram Suara"
+                className="h-auto max-h-40 w-auto object-cover rounded-lg"
               />
             </div>
-            <div className="mt-3 flex items-center justify-center gap-5">
-              {[
-                { color: "bg-blue-500", label: "Tidak aktif" },
-                { color: "bg-orange-400", label: "Sedang" },
-                { color: "bg-red-500", label: "Paling aktif" },
-              ].map(({ color, label }) => (
-                <div key={label} className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                  <span className={`h-2.5 w-2.5 rounded-sm ${color}`} />
-                  {label}
-                </div>
-              ))}
-            </div>
+            <p className="mt-3 text-[10px] text-center text-muted-foreground">
+              Warna cerah (kuning/hijau) menunjukkan titik ledakan energi frekuensi suara.
+            </p>
           </CardContent>
         </Card>
       </div>
 
+      {/* 3. Transparansi matematika */}
+      <Card className="border">
+        <CardContent className="pt-5">
+          <p className="mb-1 flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+            <FileText className="h-3.5 w-3.5" />
+            Cara AI menghitung keputusan ini
+          </p>
+          <p className="mb-5 text-xs text-muted-foreground">
+            AI mengolah suara melalui 3 tahap matematika menggunakan arsitektur {data.algoritma || "Deep Learning"}.
+          </p>
+          
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-[1fr_auto_1fr_auto_1fr]">
+            {/* Step 1: Logits Asli */}
+            <div className="rounded-xl border bg-muted/40 p-4">
+              <p className="mb-3 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                Tahap 1 — skor mentah (logits)
+              </p>
+              <div className="space-y-1.5 font-mono text-xs">
+                <div className="flex justify-between gap-4">
+                  <span className="text-muted-foreground">Z TBC</span>
+                  <span className="font-semibold text-primary">= {math.z_tbc}</span>
+                </div>
+                <div className="flex justify-between gap-4">
+                  <span className="text-muted-foreground">Z Normal</span>
+                  <span className="font-semibold text-primary">= {math.z_norm}</span>
+                </div>
+              </div>
+            </div>
+            
+            {/* Arrow */}
+            <div className="hidden items-center pt-5 text-muted-foreground md:flex">
+              <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <line x1="5" y1="12" x2="19" y2="12" /><polyline points="12 5 19 12 12 19" />
+              </svg>
+            </div>
+            
+            {/* Step 2: Eksponensial Asli */}
+            <div className="rounded-xl border bg-muted/40 p-4">
+              <p className="mb-3 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                Tahap 2 — eksponensial (e^z)
+              </p>
+              <div className="space-y-1.5 font-mono text-xs">
+                <div className="flex justify-between gap-4">
+                  <span className="text-muted-foreground truncate">e^({math.z_tbc})</span>
+                  <span className="font-semibold text-primary">= {math.exp_tbc}</span>
+                </div>
+                <div className="flex justify-between gap-4">
+                  <span className="text-muted-foreground truncate">e^({math.z_norm})</span>
+                  <span className="font-semibold text-primary">= {math.exp_norm}</span>
+                </div>
+                <hr className="border-border" />
+                <div className="flex justify-between gap-4">
+                  <span className="text-muted-foreground">Total (Σ)</span>
+                  <span className="font-semibold text-primary">= {math.sum_exp}</span>
+                </div>
+              </div>
+            </div>
 
+            {/* Arrow */}
+            <div className="hidden items-center pt-5 text-muted-foreground md:flex">
+              <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <line x1="5" y1="12" x2="19" y2="12" /><polyline points="12 5 19 12 12 19" />
+              </svg>
+            </div>
+            
+            {/* Step 3: Probabilitas */}
+            <div className="rounded-xl border bg-muted/40 p-4">
+              <p className="mb-3 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                Tahap 3 — hasil softmax (%)
+              </p>
+              <div className="space-y-2">
+                <div className="rounded-lg bg-red-50 p-2.5 font-mono text-xs">
+                  <p className="text-[10px] text-red-400">P(TBC) = {math.exp_tbc} / {math.sum_exp}</p>
+                  <p className="mt-0.5 text-base font-bold text-red-600">= {data.prob_tbc.toFixed(2)}%</p>
+                </div>
+                <div className="rounded-lg bg-green-50 p-2.5 font-mono text-xs">
+                  <p className="text-[10px] text-green-500">P(Normal) = {math.exp_norm} / {math.sum_exp}</p>
+                  <p className="mt-0.5 text-base font-bold text-green-600">= {data.prob_normal.toFixed(2)}%</p>
+                </div>
+              </div>
+            </div>
+          </div>
+          
+          <div className="mt-4 flex items-start gap-2.5 rounded-xl border border-primary/20 bg-primary/5 px-4 py-3">
+            <Info className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
+            <p className="text-xs leading-relaxed text-primary/80">
+              Semakin tinggi persentase suatu kategori, semakin yakin AI bahwa pola akustik menyerupai 
+              kategori tersebut. Hasil ini bukan diagnosis medis resmi — selalu konsultasikan ke dokter.
+            </p>
+          </div>
+        </CardContent>
+      </Card>
     </div>
   )
 }

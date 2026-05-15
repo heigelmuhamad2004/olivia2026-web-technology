@@ -2,12 +2,12 @@
 
 import os
 import io
+import math
 import subprocess
 import tempfile
 import numpy as np
 import librosa
 import librosa.display
-import cv2
 from PIL import Image
 import tensorflow as tf
 from tensorflow.keras.models import load_model
@@ -17,10 +17,8 @@ import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 
-
 # =========================================================
 # 🌟 PATCH KHUSUS UNTUK MODEL DARI GOOGLE COLAB
-# Mencegah error "Unrecognized keyword arguments passed to Dense"
 # =========================================================
 class CustomDense(tf.keras.layers.Dense):
     def __init__(self, **kwargs):
@@ -38,26 +36,23 @@ custom_objects_patch = {
 }
 # =========================================================
 
-
 # ==========================================
-# INISIALISASI MODEL AI GLOBAL (VERSI BYPASS DARURAT)
+# INISIALISASI MODEL AI GLOBAL (PENGGUNAAN NORMAL)
 # ==========================================
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 MODELS_DIR = os.path.join(BASE_DIR, 'ml_models')
 
-print("⏳ Bypass load model AI Audio (Hemat RAM untuk Railway)...")
-# MATIKAN SEMENTARA AGAR SERVER TIDAK MATI
-# try:
-#     # Menggunakan custom_objects_patch agar model bisa dimuat dengan aman
-#     MODELS = {
-#         "cnn": load_model(os.path.join(MODELS_DIR, 'model_custom4_cnn.h5'), custom_objects=custom_objects_patch),
-#         "densenet": load_model(os.path.join(MODELS_DIR, 'model_densenet.h5'), custom_objects=custom_objects_patch)
-#     }
-#     print("✅ Model AI Audio berhasil dimuat!")
-# except Exception as e:
-#     print(f"❌ Gagal memuat model Audio: {e}")
+print("⏳ Memuat model AI Audio (CNN & DenseNet)...")
+MODELS = {}
+try:
+    MODELS = {
+        "cnn": load_model(os.path.join(MODELS_DIR, 'model_custom4_cnn.h5'), custom_objects=custom_objects_patch),
+        "densenet": load_model(os.path.join(MODELS_DIR, 'model_densenet.h5'), custom_objects=custom_objects_patch)
+    }
+    print("✅ Model AI Audio berhasil dimuat!")
+except Exception as e:
+    print(f"❌ Gagal memuat model Audio: {e}")
 
-MODELS = {} # Set kosong agar server ringan
 
 class AIAudioService:
     @staticmethod
@@ -105,95 +100,28 @@ class AIAudioService:
             librosa.display.specshow(S_dB, sr=sr, fmax=8000, cmap='viridis', ax=ax)
 
             buf = io.BytesIO()
-            plt.savefig(buf, format='png', bbox_inches=None, pad_inches=0, dpi=100)
+            plt.savefig(buf, format='png', bbox_inches='tight', pad_inches=0, dpi=100)
             plt.close(fig)
             buf.seek(0)
 
+            # 1. Ambil Base64 dari gambar Spektrogram asli untuk dikirim ke Frontend
+            spectrogram_base64 = base64.b64encode(buf.getvalue()).decode("utf-8")
+            spectrogram_b64_string = f"data:image/png;base64,{spectrogram_base64}"
+
+            # 2. Resize gambar menggunakan PIL (menggantikan cv2) untuk masuk ke Model AI
             img_pil = Image.open(buf).convert('RGB')
-            img_array = np.array(img_pil)
-            img_resized = cv2.resize(img_array, (224, 224))
+            img_resized_pil = img_pil.resize((224, 224)) # Pengganti cv2.resize
             
-            img_final = img_resized.astype(np.float32) / 255.0
-            return np.expand_dims(img_final, axis=0)
+            img_array = np.array(img_resized_pil)
+            img_final = img_array.astype(np.float32) / 255.0
+            input_tensor = np.expand_dims(img_final, axis=0)
+
+            # Kembalikan TENSOR (untuk AI) dan STRING BASE64 (untuk Frontend)
+            return input_tensor, spectrogram_b64_string
+            
         finally:
             if os.path.exists(wav_path):
                 os.remove(wav_path)
-
-    @staticmethod
-    def get_last_conv_layer_name(model):
-        # 1. Cara Paling Aman: Cari dari belakang, pastikan layer tersebut outputnya 4D (Gambar)
-        for layer in reversed(model.layers):
-            try:
-                # Cek apakah bentuk output layer ini adalah 4 Dimensi (Batch, Height, Width, Channel)
-                if len(layer.output.shape) == 4:
-                    # Jangan ambil layer Pooling atau Input agar warna Grad-CAM lebih fokus
-                    if 'input' not in layer.name.lower() and 'pool' not in layer.name.lower():
-                        return layer.name
-            except Exception:
-                continue
-                
-        # 2. Fallback (Rencana Cadangan): Cari paksa layer yang ada kata 'conv'
-        for layer in reversed(model.layers):
-            if 'conv' in layer.name.lower():
-                return layer.name
-                
-        return None
-
-    @staticmethod
-    def make_gradcam_heatmap(img_array, model, last_conv_layer_name, pred_index=None):
-        if last_conv_layer_name is None:
-            raise ValueError("Tidak menemukan layer Konvolusi untuk XAI.")
-        try:
-            grad_model = tf.keras.models.Model(
-                model.inputs, [model.get_layer(last_conv_layer_name).output, model.output]
-            )
-        except Exception as e:
-            inputs = tf.keras.Input(shape=(224, 224, 3))
-            x = inputs
-            conv_output = None
-            for layer in model.layers:
-                x = layer(x)
-                if layer.name == last_conv_layer_name:
-                    conv_output = x
-            grad_model = tf.keras.models.Model(inputs, [conv_output, x])
-
-        with tf.GradientTape() as tape:
-            last_conv_layer_output, preds = grad_model(img_array)
-            if pred_index is None:
-                pred_index = tf.argmax(preds[0])
-            class_channel = preds[:, pred_index]
-
-        grads = tape.gradient(class_channel, last_conv_layer_output)
-        pooled_grads = tf.reduce_mean(grads, axis=(0, 1, 2))
-        last_conv_layer_output = last_conv_layer_output[0]
-
-        heatmap = last_conv_layer_output @ pooled_grads[..., tf.newaxis]
-        heatmap = tf.squeeze(heatmap)
-        heatmap = tf.maximum(heatmap, 0)
-
-        max_val = tf.math.reduce_max(heatmap)
-        if max_val != 0:
-            heatmap = heatmap / max_val
-
-        return heatmap.numpy()
-
-    @staticmethod
-    def overlay_gradcam(img_array, heatmap):
-        img = img_array[0] * 255.0
-        img = np.uint8(img)
-
-        heatmap_resized = cv2.resize(heatmap, (img.shape[1], img.shape[0]))
-        heatmap_resized = np.uint8(255 * heatmap_resized)
-
-        heatmap_colored = cv2.applyColorMap(heatmap_resized, cv2.COLORMAP_JET)
-        heatmap_colored_rgb = cv2.cvtColor(heatmap_colored, cv2.COLOR_BGR2RGB)
-
-        superimposed_img = cv2.addWeighted(heatmap_colored_rgb, 0.4, img, 0.6, 0)
-        superimposed_bgr = cv2.cvtColor(superimposed_img, cv2.COLOR_RGB2BGR)
-        is_success, buffer = cv2.imencode(".jpg", superimposed_bgr)
-        img_str = base64.b64encode(buffer).decode("utf-8")
-
-        return f"data:image/jpeg;base64,{img_str}"
 
     @classmethod
     def analyze(cls, audio_path, model_type="cnn"):
@@ -201,23 +129,39 @@ class AIAudioService:
             raise ValueError(f"Model {model_type} tidak dikenali.")
             
         model = MODELS[model_type]
-        input_image = cls.process_audio(audio_path)
+        
+        # Ambil tensor input dan base64 spektrogram murni
+        input_image, spectrogram_base64 = cls.process_audio(audio_path)
         
         prediction = model.predict(input_image)
-        pred_index = np.argmax(prediction[0])
+        
+        # Ekstrak nilai probabilitas 0 - 1.0
+        prob_normal = float(prediction[0][0])
+        prob_tbc = float(prediction[0][1])
 
-        prob_normal = float(prediction[0][0]) * 100
-        prob_tbc = float(prediction[0][1]) * 100
+        # ======================================================
+        # KALKULASI REVERSE SOFTMAX UNTUK TRANSPARANSI FRONTEND
+        # ======================================================
+        epsilon = 1e-7 # Mencegah error log(0)
+        z_norm = math.log(prob_normal + epsilon)
+        z_tbc = math.log(prob_tbc + epsilon)
+        
+        exp_norm = math.exp(z_norm)
+        exp_tbc = math.exp(z_tbc)
+        sum_exp = exp_norm + exp_tbc 
 
         diagnosis = "Suspek TBC" if prob_tbc > prob_normal else "Normal"
-        
-        last_conv_layer = cls.get_last_conv_layer_name(model)
-        heatmap = cls.make_gradcam_heatmap(input_image, model, last_conv_layer, pred_index)
-        gradcam_image_base64 = cls.overlay_gradcam(input_image, heatmap)
 
         return {
             "diagnosis": diagnosis,
-            "prob_tbc": prob_tbc,
-            "prob_normal": prob_normal,
-            "gradcam_image": gradcam_image_base64
+            "prob_tbc": prob_tbc * 100, 
+            "prob_normal": prob_normal * 100,
+            "spectrogram_image": spectrogram_base64, # Mengirim gambar spektrogram murni
+            "math_details": {
+                "z_tbc": round(z_tbc, 4),
+                "z_norm": round(z_norm, 4),
+                "exp_tbc": round(exp_tbc, 4),
+                "exp_norm": round(exp_norm, 4),
+                "sum_exp": round(sum_exp, 4)
+            }
         }

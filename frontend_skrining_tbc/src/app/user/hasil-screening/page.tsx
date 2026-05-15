@@ -13,6 +13,21 @@ import jsPDF from "jspdf"
 import { Download, Mic, ClipboardList, BrainCircuit } from "lucide-react"
 import { ResultVisualizer } from "@/components/ResultVisualizer"
 
+// Tambahkan interface ini untuk detail matematika
+interface MathDetails {
+  z_tbc: number;
+  z_norm: number;
+  exp_tbc: number;
+  exp_norm: number;
+  sum_exp: number;
+}
+
+// Perluas interface SkriningRiwayat yang sudah ada
+interface SkriningRiwayatExtended extends SkriningRiwayat {
+  detail_matematika?: MathDetails;
+  spectrogram_image?: string;
+}
+
 function HasilScreeningContent() {
   const searchParams = useSearchParams()
   const pasienId = searchParams.get("pasienId")
@@ -77,27 +92,39 @@ function HasilScreeningContent() {
 
   const isPositif = hasilScreening.hasil_screening.toLowerCase() === "terduga"
 
-  // Tentukan apakah ada data AI suara
-  const hasAiSuara =
-    hasilScreening.skor_suara_ai != null && hasilScreening.gradcam_image
+  // Gunakan casting ke interface yang sudah diperluas
+  const dataTerpilih = hasilScreening as SkriningRiwayatExtended;
 
-  // Mapping data untuk ResultVisualizer
+  // Cek keberadaan data AI Suara
+  const hasAiSuara =
+    dataTerpilih.skor_suara_ai !== null && 
+    (dataTerpilih.spectrogram_image || dataTerpilih.gradcam_image);
+
+  // Mapping data untuk ResultVisualizer tanpa 'any'
   const aiSuaraData = hasAiSuara
     ? {
-        diagnosis:
-          (hasilScreening.skor_suara_ai ?? 0) > 50 ? "Suspek TBC" : "Normal",
-        confidence: Math.max(
-          hasilScreening.skor_suara_ai ?? 0,
-          100 - (hasilScreening.skor_suara_ai ?? 0)
-        ),
-        prob_tbc: hasilScreening.skor_suara_ai ?? 0,
-        prob_normal: 100 - (hasilScreening.skor_suara_ai ?? 0),
-        gradcam_image: hasilScreening.gradcam_image!,
-        algoritma: (hasilScreening.metode_skrining || "").includes("DenseNet")
+        diagnosis: (dataTerpilih.skor_suara_ai ?? 0) > 50 ? "Suspek TBC" : "Normal",
+        prob_tbc: dataTerpilih.skor_suara_ai ?? 0,
+        prob_normal: 100 - (dataTerpilih.skor_suara_ai ?? 0),
+        
+        // Spektrogram disimpan di gradcam_image dari database
+        spectrogram_image: dataTerpilih.gradcam_image || "",
+        gradcam_image: dataTerpilih.gradcam_image || "",
+        
+        // Default math_details jika tidak ada di database
+        math_details: dataTerpilih.detail_matematika || {
+          z_tbc: 0,
+          z_norm: 0,
+          exp_tbc: 0,
+          exp_norm: 0,
+          sum_exp: 1
+        },
+        
+        algoritma: (dataTerpilih.metode_skrining || "").includes("DenseNet")
           ? "DenseNet"
           : "CNN",
       }
-    : null
+    : null;
 
   return (
     <div className="flex min-h-[calc(100vh-5rem)] w-full items-center justify-center px-4 pb-24 pt-10">

@@ -1,13 +1,53 @@
-version: '3.8'
 services:
+  # 1. DATABASE MYSQL
+  db:
+    image: mysql:8.0
+    restart: always
+    environment:
+      MYSQL_ALLOW_EMPTY_PASSWORD: 'yes' # Mengizinkan root tanpa password
+      MYSQL_DATABASE: db_tbcheckv2      # Otomatis membuat DB ini
+    ports:
+      - "3306:3306"
+    volumes:
+      - db_data:/var/lib/mysql          # Agar data aman walau Docker mati
+
+  # 2. PHPMYADMIN (Pengganti UI XAMPP)
+  phpmyadmin:
+    image: phpmyadmin/phpmyadmin
+    restart: always
+    ports:
+      - "8080:80" # Akses di http://localhost:8080
+    environment:
+      PMA_HOST: db
+      PMA_USER: root
+      PMA_PASSWORD: ""
+    depends_on:
+      - db
+
+  # 3. BACKEND FLASK AI
   backend-ai:
     build: ./backend_skrining_tbc
     ports:
       - "5000:5000"
+    volumes:
+      - ./backend_skrining_tbc:/app # Hubungkan folder ke Docker
+    environment:
+      - FLASK_ENV=development
+      - FLASK_DEBUG=1               # Bikin Flask auto-restart kalau di-save
+    depends_on:
+      - db
 
+  # 4. FRONTEND NEXT.JS
   frontend-web:
     build: ./frontend_skrining_tbc
     ports:
       - "3000:3000"
+    volumes:
+      - ./frontend_skrining_tbc:/app # Hubungkan folder ke Docker
+      - /app/node_modules            # Mencegah error library Node.js
     depends_on:
       - backend-ai
+
+# Wajib daftarkan volume penyimpanan database di paling bawah
+volumes:
+  db_data:

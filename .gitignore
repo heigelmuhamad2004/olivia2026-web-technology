@@ -2,6 +2,7 @@
 node_modules/
 /vendor/
 
+
 # --- Environment Variables (SANGAT PENTING) ---
 # Jangan pernah upload file berisi password/API key
 .env
@@ -25,6 +26,9 @@ Thumbs.db
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+
+**/__pycache__/
+**/*.pyc
 
 *.h5
 backend_skrining_tbc/app/ml_models/

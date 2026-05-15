@@ -1,0 +1,32 @@
+[
+  {
+    "id": "3509",
+    "province_id": "35",
+    "name": "KABUPATEN JEMBER"
+  },
+  {
+    "id": "3513",
+    "province_id": "35",
+    "name": "KABUPATEN PROBOLINGGO"
+  },
+  {
+    "id": "3301",
+    "province_id": "33",
+    "name": "KABUPATEN CILACAP"
+  },
+  {
+    "id": "3374",
+    "province_id": "33",
+    "name": "KOTA SEMARANG"
+  },
+  {
+    "id": "3273",
+    "province_id": "32",
+    "name": "KOTA BANDUNG"
+  },
+  {
+    "id": "3205",
+    "province_id": "32",
+    "name": "KABUPATEN GARUT"
+  }
+]

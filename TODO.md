@@ -1,0 +1,8 @@
+- [x] Fix __tablename__ typo in kecamatan.py: Change '__tablrename__' to '__tablename__'
+- [x] Remove duplicate kecamatan_id in user.py
+- [x] Capitalize 'skrining' to 'Skrining' in pasien.py relationship
+- [x] Capitalize 'pasien' to 'Pasien' in user.py relationship
+- [x] Capitalize 'kabupaten' to 'Kabupaten' in provinsi.py relationship
+- [x] Capitalize 'kecamatan' to 'Kecamatan' in kabupaten.py relationship
+- [x] Capitalize 'pasien' to 'Pasien' in kecamatan.py relationship
+- [x] Fix db.Varchar to db.String(255) in skrining.py

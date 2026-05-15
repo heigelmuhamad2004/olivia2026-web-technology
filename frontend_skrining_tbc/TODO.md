@@ -1,0 +1,2 @@
+- [x] Update form grid to responsive: grid-cols-1 md:grid-cols-2 gap-6
+- [x] Update jenis_kelamin checkboxes to flex flex-col sm:flex-row gap-6

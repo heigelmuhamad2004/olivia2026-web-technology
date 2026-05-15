@@ -1,0 +1,102 @@
+[
+  {
+    "id": 1,
+    "nama": "Budi Santoso",
+    "email": "super.budi@madiun.go.id",
+    "password_hash": "$2b$12$LQv3c1yqBWVHxkd0LHAym.hD.d/xWj.gT1.aPz/uN.1A9",
+    "role": "super_admin",
+    "kecamatan_id": null,
+    "created_at": "2023-01-15T08:30:00Z",
+    "updated_at": "2024-03-10T09:15:00Z"
+  },
+  {
+    "id": 2,
+    "nama": "Siti Aminah",
+    "email": "admin.kartoharjo@madiun.go.id",
+    "password_hash": "$2b$12$k9L.wQf3.t5R/zY.1hJ.0uP.2lM.3nA.4bV.5cX.6dZ",
+    "role": "admin",
+    "kecamatan_id": 357701,
+    "created_at": "2023-02-20T10:00:00Z",
+    "updated_at": "2024-02-25T14:20:00Z"
+  },
+  {
+    "id": 3,
+    "nama": "Agus Setiawan",
+    "email": "admin.taman@madiun.go.id",
+    "password_hash": "$2b$12$p8O.iUy4.r4E/wX.2gK.1vQ.3mN.4oB.5cV.6xZ.7aS",
+    "role": "admin",
+    "kecamatan_id": 357702,
+    "created_at": "2023-03-10T09:45:00Z",
+    "updated_at": "2024-01-15T11:00:00Z"
+  },
+  {
+    "id": 4,
+    "nama": "Dewi Lestari",
+    "email": "admin.manguharjo@madiun.go.id",
+    "password_hash": "$2b$12$m7N.hTx5.q3W/vC.3fL.2wR.4lV.5pC.6xD.7yA.8sD",
+    "role": "admin_puskesmas",
+    "kecamatan_id": 357703,
+    "created_at": "2023-04-05T13:20:00Z",
+    "updated_at": "2024-03-01T16:30:00Z"
+  },
+  {
+    "id": 5,
+    "nama": "Eko Prasetyo",
+    "email": "admin.mejayan@madiunkab.go.id",
+    "password_hash": "$2b$12$n6B.gRz6.p2Q/uB.4dJ.3eS.5kX.6qZ.7wS.8eR.9tF",
+    "role": "admin_puskesmas",
+    "kecamatan_id": 351910,
+    "created_at": "2023-05-12T08:00:00Z",
+    "updated_at": "2024-02-28T10:10:00Z"
+  },
+  {
+    "id": 6,
+    "nama": "Rina Wati",
+    "email": "admin.dolopo@madiunkab.go.id",
+    "password_hash": "$2b$12$b5V.fSy7.o1A/tN.5sH.4dT.6jC.7rX.8tF.9yG.0uH",
+    "role": "admin_puskesmas",
+    "kecamatan_id": 351903,
+    "created_at": "2023-06-18T11:30:00Z",
+    "updated_at": "2024-03-05T09:00:00Z"
+  },
+  {
+    "id": 7,
+    "nama": "Doni Kurniawan",
+    "email": "admin.geger@madiunkab.go.id",
+    "password_hash": "$2b$12$v4C.eRx8.n9Z/sM.6aG.5yU.7hB.8sV.9uJ.0iK.1oL",
+    "role": "admin_puskesmas",
+    "kecamatan_id": 351904,
+    "created_at": "2023-07-22T14:15:00Z",
+    "updated_at": "2023-12-20T13:45:00Z"
+  },
+  {
+    "id": 8,
+    "nama": "Sri Wahyuni",
+    "email": "admin.jiwan@madiunkab.go.id",
+    "password_hash": "$2b$12$x3Z.dQw9.m8Y/rL.7kF.6jI.8gN.9tM.0oP.1lK.2mJ",
+    "role": "admin_puskesmas",
+    "kecamatan_id": 351914,
+    "created_at": "2023-08-15T09:10:00Z",
+    "updated_at": "2024-01-10T15:20:00Z"
+  },
+  {
+    "id": 9,
+    "nama": "Bambang Supriyanto",
+    "email": "admin.saradan@madiunkab.go.id",
+    "password_hash": "$2b$12$z2L.cPv0.l7X/qK.8jD.7hO.9fM.0wQ.1eR.2tY.3uI",
+    "role": "admin_puskesmas",
+    "kecamatan_id": 351908,
+    "created_at": "2023-09-30T10:50:00Z",
+    "updated_at": "2024-03-08T08:45:00Z"
+  },
+  {
+    "id": 10,
+    "nama": "Lina Hartini",
+    "email": "admin.kebonsari@madiunkab.go.id",
+    "password_hash": "$2b$12$a1K.bVu1.k6J/pH.9lS.8gA.0dZ.1xC.2vB.3nM.4qW",
+    "role": "admin_puskesmas",
+    "kecamatan_id": 351902,
+    "created_at": "2023-10-10T15:00:00Z",
+    "updated_at": "2024-02-14T12:00:00Z"
+  }
+]

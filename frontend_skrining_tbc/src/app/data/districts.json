@@ -1,0 +1,67 @@
+[
+  {
+    "id": "350901",
+    "regency_id": "3509",
+    "name": "SUMBERSARI"
+  },
+  {
+    "id": "350902",
+    "regency_id": "3509",
+    "name": "PATRANG"
+  },
+  {
+    "id": "350903",
+    "regency_id": "3509",
+    "name": "KALIWATES"
+  },
+  {
+    "id": "351301",
+    "regency_id": "3513",
+    "name": "SUKAPURA"
+  },
+  {
+    "id": "351302",
+    "regency_id": "3513",
+    "name": "SUMBER"
+  },
+  {
+    "id": "330101",
+    "regency_id": "3301",
+    "name": "KEDUNGREJA"
+  },
+  {
+    "id": "330102",
+    "regency_id": "3301",
+    "name": "KESUGIHAN"
+  },
+  {
+    "id": "337401",
+    "regency_id": "3374",
+    "name": "SEMARANG TENGAH"
+  },
+  {
+    "id": "337402",
+    "regency_id": "3374",
+    "name": "SEMARANG TIMUR"
+  },
+  {
+    "id": "327301",
+    "regency_id": "3273",
+    "name": "SUKASARI"
+  },
+  {
+    "id": "327302",
+    "regency_id": "3273",
+    "name": "COBLONG"
+  },
+  {
+    "id": "320501",
+    "regency_id": "3205",
+    "name": "GARUT KOTA"
+  },
+  {
+    "id": "320502",
+    "regency_id": "3205",
+    "name": "TAROGONG KIDUL"
+  }
+]

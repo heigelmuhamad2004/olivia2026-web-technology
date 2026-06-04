@@ -3,11 +3,11 @@
 import os
 import io
 import math
-import subprocess
 import tempfile
 import numpy as np
 import librosa
 import librosa.display
+import soundfile as sf
 from PIL import Image
 import tensorflow as tf
 from tensorflow.keras.models import load_model
@@ -18,7 +18,7 @@ matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 
 # =========================================================
-# 🌟 PATCH KHUSUS UNTUK MODEL DARI GOOGLE COLAB
+# PATCH KHUSUS UNTUK MODEL DARI GOOGLE COLAB
 # =========================================================
 class CustomDense(tf.keras.layers.Dense):
     def __init__(self, **kwargs):
@@ -32,136 +32,111 @@ class CustomConv2D(tf.keras.layers.Conv2D):
 
 custom_objects_patch = {
     'Dense': CustomDense,
-    'Conv2D': CustomConv2D
+    'Conv2D': CustomConv2D,
+    'Recall': tf.keras.metrics.Recall # Tambahkan ini karena kita pakai Recall saat training!
 }
 # =========================================================
 
-# ==========================================
-# INISIALISASI MODEL AI GLOBAL (PENGGUNAAN NORMAL)
-# ==========================================
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 MODELS_DIR = os.path.join(BASE_DIR, 'ml_models')
 
-print("⏳ Memuat model AI Audio (CNN & DenseNet)...")
+print("⏳ Memuat model AI Audio...")
 MODELS = {}
 try:
     MODELS = {
-        "cnn": load_model(os.path.join(MODELS_DIR, 'model_custom4_cnn.h5'), custom_objects=custom_objects_patch),
-        "densenet": load_model(os.path.join(MODELS_DIR, 'model_densenet.h5'), custom_objects=custom_objects_patch)
+        "cnn": load_model(os.path.join(MODELS_DIR, 'model_custom4_cnn_terbaik.h5'), custom_objects=custom_objects_patch),
+        "densenet": load_model(os.path.join(MODELS_DIR, 'model_densenet_terbaik.h5'), custom_objects=custom_objects_patch)
     }
     print("✅ Model AI Audio berhasil dimuat!")
 except Exception as e:
     print(f"❌ Gagal memuat model Audio: {e}")
 
-
 class AIAudioService:
+    
     @staticmethod
-    def process_audio(audio_path):
-        wav_fd, wav_path = tempfile.mkstemp(suffix=".wav")
-        os.close(wav_fd)
-
-        subprocess.call(['ffmpeg', '-y', '-i', audio_path, '-ar', '22050', '-ac', '1', wav_path], 
-                        stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT)
-
+    def generate_preview_base64(audio_path):
+        """Memotong audio 1.2s di puncak suara dan mengembalikan Base64 Audio untuk diputar di Frontend."""
         try:
-            y, sr = librosa.load(wav_path, sr=22050)
-            max_amp = np.max(np.abs(y))
+            y, sr = librosa.load(audio_path, sr=22050)
             
-            if max_amp < 0.05:
+            # Hapus hening
+            y_trimmed, _ = librosa.effects.trim(y, top_db=20)
+            if np.max(np.abs(y_trimmed)) < 0.05:
                 raise ValueError("Suara terlalu pelan. Silakan rekam ulang batuk yang lebih jelas.")
 
-            duration = librosa.get_duration(y=y, sr=sr)
-            target_length = sr * 1  
+            # Smart Crop 1.2 Detik
+            titik_puncak = np.argmax(np.abs(y_trimmed))
+            total_samples = int(1.2 * sr)
+            titik_awal = max(0, titik_puncak - int(0.2 * sr))
+            titik_akhir = min(len(y_trimmed), titik_awal + total_samples)
             
-            if duration <= 1.1:
-                y_final = y
-            else:
-                peak_idx = np.argmax(np.abs(y))
-                start = peak_idx - (target_length // 2)
-                end = start + target_length
+            if titik_akhir - titik_awal < total_samples:
+                titik_awal = max(0, titik_akhir - total_samples)
                 
-                if start < 0:
-                    start = 0
-                    end = target_length
-                elif end > len(y):
-                    end = len(y)
-                    start = end - target_length
-                    
-                y_final = y[start:end]
+            y_potong = y_trimmed[titik_awal:titik_akhir]
 
-            if len(y_final) < target_length:
-                y_final = np.pad(y_final, (0, target_length - len(y_final)), 'constant')
-
-            S = librosa.feature.melspectrogram(y=y_final, sr=sr, n_mels=128, fmax=8000)
-            S_dB = librosa.power_to_db(S, ref=np.max)
-
-            fig = plt.figure(figsize=(3, 3))
-            ax = plt.axes([0., 0., 1., 1.], frameon=False, xticks=[], yticks=[])
-            librosa.display.specshow(S_dB, sr=sr, fmax=8000, cmap='viridis', ax=ax)
-
-            buf = io.BytesIO()
-            plt.savefig(buf, format='png', bbox_inches='tight', pad_inches=0, dpi=100)
-            plt.close(fig)
-            buf.seek(0)
-
-            # 1. Ambil Base64 dari gambar Spektrogram asli untuk dikirim ke Frontend
-            spectrogram_base64 = base64.b64encode(buf.getvalue()).decode("utf-8")
-            spectrogram_b64_string = f"data:image/png;base64,{spectrogram_base64}"
-
-            # 2. Resize gambar menggunakan PIL (menggantikan cv2) untuk masuk ke Model AI
-            img_pil = Image.open(buf).convert('RGB')
-            img_resized_pil = img_pil.resize((224, 224)) # Pengganti cv2.resize
+            # Simpan ke memori (buffer) lalu jadikan Base64
+            buffer = io.BytesIO()
+            sf.write(buffer, y_potong, sr, format='WAV')
+            buffer.seek(0)
             
-            img_array = np.array(img_resized_pil)
-            img_final = img_array.astype(np.float32) / 255.0
-            input_tensor = np.expand_dims(img_final, axis=0)
-
-            # Kembalikan TENSOR (untuk AI) dan STRING BASE64 (untuk Frontend)
-            return input_tensor, spectrogram_b64_string
+            audio_base64 = base64.b64encode(buffer.read()).decode('utf-8')
+            return f"data:audio/wav;base64,{audio_base64}"
             
-        finally:
-            if os.path.exists(wav_path):
-                os.remove(wav_path)
+        except Exception as e:
+            raise ValueError(f"Gagal memproses preview audio: {str(e)}")
 
     @classmethod
     def analyze(cls, audio_path, model_type="cnn"):
+        """Menerima file audio yang sudah DISETUJUI user, membuat spektrogram, dan memprediksi."""
         if model_type not in MODELS:
             raise ValueError(f"Model {model_type} tidak dikenali.")
             
         model = MODELS[model_type]
         
-        # Ambil tensor input dan base64 spektrogram murni
-        input_image, spectrogram_base64 = cls.process_audio(audio_path)
+        # 1. Load audio (audio ini sudah dipotong 1.2s dari tahap preview)
+        y, sr = librosa.load(audio_path, sr=22050)
         
-        prediction = model.predict(input_image)
-        
-        # Ekstrak nilai probabilitas 0 - 1.0
-        prob_normal = float(prediction[0][0])
-        prob_tbc = float(prediction[0][1])
+        # 2. Buat Spektrogram
+        S = librosa.feature.melspectrogram(y=y, sr=sr, n_mels=128, fmax=8000)
+        S_dB = librosa.power_to_db(S, ref=np.max)
 
-        # ======================================================
-        # KALKULASI REVERSE SOFTMAX UNTUK TRANSPARANSI FRONTEND
-        # ======================================================
-        epsilon = 1e-7 # Mencegah error log(0)
-        z_norm = math.log(prob_normal + epsilon)
-        z_tbc = math.log(prob_tbc + epsilon)
-        
-        exp_norm = math.exp(z_norm)
-        exp_tbc = math.exp(z_tbc)
-        sum_exp = exp_norm + exp_tbc 
+        fig = plt.figure(figsize=(3, 3))
+        ax = plt.axes([0., 0., 1., 1.], frameon=False, xticks=[], yticks=[])
+        librosa.display.specshow(S_dB, sr=sr, fmax=8000, cmap='viridis', ax=ax)
 
-        diagnosis = "Suspek TBC" if prob_tbc > prob_normal else "Normal"
+        buf = io.BytesIO()
+        plt.savefig(buf, format='png', bbox_inches='tight', pad_inches=0, dpi=100)
+        plt.close(fig)
+        buf.seek(0)
+
+        # 3. Base64 Spektrogram & Resize
+        spectrogram_b64_string = f"data:image/png;base64,{base64.b64encode(buf.getvalue()).decode('utf-8')}"
+        img_pil = Image.open(buf).convert('RGB').resize((224, 224)) 
+        
+        input_tensor = np.expand_dims(np.array(img_pil).astype(np.float32) / 255.0, axis=0)
+
+        # 4. Prediksi AI (Sigmoid menghasilkan 1 nilai)
+        prediction = model.predict(input_tensor, verbose=0)
+        probabilitas = float(prediction[0][0])
+        
+        # 5. Matematika Inverse Sigmoid (Logit)
+        epsilon = 1e-7
+        p_safe = max(min(probabilitas, 1 - epsilon), epsilon)
+        raw_logit_z = math.log(p_safe / (1 - p_safe))
+        
+        diagnosis = "Suspek TBC" if probabilitas > 0.50 else "Normal"
 
         return {
             "diagnosis": diagnosis,
-            "prob_tbc": prob_tbc * 100, 
-            "prob_normal": prob_normal * 100,
-            "spectrogram_image": spectrogram_base64, # Mengirim gambar spektrogram murni
+            "probabilitas_ai": probabilitas * 100,
+            "spectrogram_image": spectrogram_b64_string,
             "math_details": {
-                "z_tbc": round(z_tbc, 4),
-                "z_norm": round(z_norm, 4),
-                "exp_tbc": round(exp_tbc, 4),
-                "exp_norm": round(exp_norm, 4),
-                "sum_exp": round(sum_exp, 4)
+                "aktivasi": "Sigmoid (Binary Classification)",
+                "probabilitas_p": round(probabilitas, 4),
+                "raw_logit_z": round(raw_logit_z, 4),
+                "threshold": 0.50,
+                "rumus": "z = ln(P / (1 - P))",
+                "keterangan": f"Nilai probabilitas {probabilitas:.2f} {'>' if probabilitas > 0.5 else '<='} threshold 0.50. Kesimpulan: {diagnosis}."
             }
         }

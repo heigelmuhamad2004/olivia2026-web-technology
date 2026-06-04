@@ -10,6 +10,7 @@ from app.controller.auth_controller import auth_bp
 # Impor user_controller yang baru
 from app.controller.user_controller import user_bp
 from app.controller import admin_puskesmas_controller
+from app.controller import benchmark_controller
 
 try:
     from app.model import user, pasien, kecamatan, skrining, token_block_list
@@ -101,6 +102,24 @@ def get_skrining_by_pasien(pasien_id):
 def process_audio_skrining():
     return skrining_audio_controller.process_audio_skrining()
 
+@app.route('/skrining/audio/preview', methods=['POST'])
+def route_preview_audio():
+    return skrining_audio_controller.preview_audio_crop()
+
+@app.route('/skrining/audio/detect', methods=['POST'])
+def route_detect_audio():
+    return skrining_audio_controller.process_audio_detect()
+
+#BENCHMARK ROUTES
+# 1. Rute Uji Konsistensi (1 Audio diulang N kali)
+@app.route('/benchmark/consistency', methods=['POST'])
+def route_benchmark_consistency():
+    return benchmark_controller.run_consistency_test()
+
+# 2. Rute Uji Variasi (Kumpulan Audio diuji sekaligus)
+@app.route('/benchmark/variation', methods=['POST'])
+def route_benchmark_variation():
+    return benchmark_controller.run_variation_test()
 
 #WILAYAH ROUTES
 @app.route('/provinsi', methods=['GET'])

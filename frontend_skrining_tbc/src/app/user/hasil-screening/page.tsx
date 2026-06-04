@@ -15,11 +15,12 @@ import { ResultVisualizer } from "@/components/ResultVisualizer"
 
 // Tambahkan interface ini untuk detail matematika
 interface MathDetails {
-  z_tbc: number;
-  z_norm: number;
-  exp_tbc: number;
-  exp_norm: number;
-  sum_exp: number;
+  aktivasi: string;
+  probabilitas_p: number;
+  raw_logit_z: number;
+  threshold: number;
+  rumus: string;
+  keterangan: string;
 }
 
 // Perluas interface SkriningRiwayat yang sudah ada
@@ -102,29 +103,22 @@ function HasilScreeningContent() {
 
   // Mapping data untuk ResultVisualizer tanpa 'any'
   const aiSuaraData = hasAiSuara
-    ? {
-        diagnosis: (dataTerpilih.skor_suara_ai ?? 0) > 50 ? "Suspek TBC" : "Normal",
-        prob_tbc: dataTerpilih.skor_suara_ai ?? 0,
-        prob_normal: 100 - (dataTerpilih.skor_suara_ai ?? 0),
-        
-        // Spektrogram disimpan di gradcam_image dari database
-        spectrogram_image: dataTerpilih.gradcam_image || "",
-        gradcam_image: dataTerpilih.gradcam_image || "",
-        
-        // Default math_details jika tidak ada di database
-        math_details: dataTerpilih.detail_matematika || {
-          z_tbc: 0,
-          z_norm: 0,
-          exp_tbc: 0,
-          exp_norm: 0,
-          sum_exp: 1
-        },
-        
-        algoritma: (dataTerpilih.metode_skrining || "").includes("DenseNet")
-          ? "DenseNet"
-          : "CNN",
-      }
-    : null;
+  ? {
+      diagnosis: (dataTerpilih.skor_suara_ai ?? 0) > 50 ? "Suspek TBC" : "Normal",
+      prob_tbc: dataTerpilih.skor_suara_ai ?? 0,
+      prob_normal: 100 - (dataTerpilih.skor_suara_ai ?? 0),
+      spectrogram_image: dataTerpilih.gradcam_image || "",
+      math_details: dataTerpilih.detail_matematika || {
+        aktivasi: "Sigmoid",
+        probabilitas_p: 0,
+        raw_logit_z: 0,
+        threshold: 0.50,
+        rumus: "z = ln(P / (1 - P))",
+        keterangan: "Data matematika tidak tersedia."
+      },
+      algoritma: (dataTerpilih.metode_skrining || "").includes("DenseNet") ? "DenseNet" : "CNN",
+    }
+  : null;
 
   return (
     <div className="flex min-h-[calc(100vh-5rem)] w-full items-center justify-center px-4 pb-24 pt-10">

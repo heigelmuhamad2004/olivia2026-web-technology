@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent } from "@/components/ui/card"
 import { 
-  Upload, Mic, Search, Music, X, Loader2, AlertTriangle, CheckCircle 
+  Upload, Mic, Search, Music, X, Loader2, AlertTriangle, CheckCircle, Scissors 
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { SkriningSuaraService, SkriningData } from "@/app/services/skrining-suara.services"
@@ -44,7 +44,11 @@ function DeteksiSuaraContent() {
   const [isAnalyzing, setIsAnalyzing] = useState(false)
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
 
-  // STATE UNTUK ALUR UX BARU
+  // STATE UNTUK ALUR UX BARU (2 TAHAP POTONG & DETEKSI)
+  const [isCropping, setIsCropping] = useState(false)
+  const [croppedAudioBase64, setCroppedAudioBase64] = useState<string | null>(null)
+
+  // STATE UNTUK ANIMASI
   const [showLayerAnimation, setShowLayerAnimation] = useState(false)
   const [isProcessingResult, setIsProcessingResult] = useState(false) // Loading dramatis
   const [showSuccessDialog, setShowSuccessDialog] = useState(false)   // Popup cantik
@@ -82,11 +86,15 @@ function DeteksiSuaraContent() {
 
   function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
-    if (file) setUploadedFile(file)
+    if (file) {
+      setUploadedFile(file)
+      setCroppedAudioBase64(null) // Reset crop jika ganti file
+    }
   }
 
   function clearFile() {
     setUploadedFile(null)
+    setCroppedAudioBase64(null)
     if (fileInputRef.current) fileInputRef.current.value = ""
   }
 
@@ -110,6 +118,7 @@ function DeteksiSuaraContent() {
       }
       mr.start()
       setIsRecording(true)
+      setCroppedAudioBase64(null) // Reset crop saat mulai rekam baru
       setSeconds(0)
       timerRef.current = setInterval(() => setSeconds((s) => s + 1), 1000)
     } else {
@@ -124,17 +133,46 @@ function DeteksiSuaraContent() {
     setRecordedBlob(null)
     setRecordedDuration(0)
     setSeconds(0)
+    setCroppedAudioBase64(null)
   }
 
-  // 1. TAHAP PEMANGGILAN API
+  // ==========================================
+  // TAHAP 1: MEMINTA BACKEND MEMOTONG AUDIO
+  // ==========================================
+  async function handleCropAudio() {
+    const audioData = activeTab === "upload" ? uploadedFile : recordedBlob
+    if (!audioData) return
+
+    setIsCropping(true)
+    setErrorMsg(null)
+    
+    const fileName = activeTab === "upload" ? uploadedFile?.name || "upload.wav" : "rekaman_langsung.webm"
+
+    try {
+      const response = await SkriningSuaraService.previewCrop(audioData, fileName)
+      
+      if (response.data?.audio_base64) {
+        setCroppedAudioBase64(response.data.audio_base64)
+      } else {
+        setErrorMsg(response.message || "Gagal mengekstrak potongan suara.")
+      }
+    } catch (error) {
+      setErrorMsg("Terjadi kesalahan sistem saat memotong suara.")
+    } finally {
+      setIsCropping(false)
+    }
+  }
+
+  // ==========================================
+  // TAHAP 2: DETEKSI AI MENGGUNAKAN AUDIO POTONGAN
+  // ==========================================
   async function handleDeteksi() {
     if (!skriningId) {
       setErrorMsg("ID Skrining tidak ditemukan. Silakan isi form skrining kesehatan terlebih dahulu.")
       return
     }
 
-    const audioData = activeTab === "upload" ? uploadedFile : recordedBlob
-    if (!audioData) return
+    if (!croppedAudioBase64) return
 
     setIsAnalyzing(true)
     setErrorMsg(null)
@@ -142,18 +180,15 @@ function DeteksiSuaraContent() {
     setPendingResult(null)
     setShowLayerAnimation(false) // Reset animasi
 
-    const fileName = activeTab === "upload" ? uploadedFile?.name || "upload.wav" : "rekaman_langsung.webm"
-
     try {
-      const response = await SkriningSuaraService.deteksi(audioData, fileName, selectedAlgo, skriningId)
+      const response = await SkriningSuaraService.deteksiAI(croppedAudioBase64, selectedAlgo, skriningId)
 
-      // ✅ PERBAIKAN: Cek data, bukan status string "success" yang kaku
       if (response.data) {
         setPendingResult(response.data)
         // LANJUT KE ANIMASI (Jangan tampilkan pesan apapun dulu)
         setShowLayerAnimation(true) 
       } else {
-        // Jika benar-benar gagal (misal: suara tidak terbaca)
+        // Jika benar-benar gagal
         setErrorMsg(response.message || "Gagal mendeteksi suara dari server.")
       }
     } catch (error) {
@@ -163,7 +198,7 @@ function DeteksiSuaraContent() {
     }
   }
 
-  // 2. TAHAP SETELAH ANIMASI SELESAI
+  // 3. TAHAP SETELAH ANIMASI SELESAI
   function handleAnimationComplete() {
     setShowLayerAnimation(false) // Tutup animasi per layer
     setIsProcessingResult(true)  // Jalankan Loading "Memproses hasil..."
@@ -175,27 +210,17 @@ function DeteksiSuaraContent() {
     }, 2000)
   }
 
-  // 3. TAHAP REDIRECT DARI POPUP
+  // 4. TAHAP REDIRECT DARI POPUP
   function goToResult() {
     router.push(`/user/hasil-screening?pasienId=${pasienId}&skriningId=${skriningId}`)
   }
-
-  function formatTime(s: number) {
-    return `${String(Math.floor(s / 60)).padStart(2, "0")}:${String(s % 60).padStart(2, "0")}`
-  }
-
-  useEffect(() => {
-    return () => {
-      if (timerRef.current) clearInterval(timerRef.current)
-    }
-  }, [])
 
   return (
     <div className="max-w-4xl mx-auto py-10 px-4 space-y-6 relative">
       <div>
         <h1 className="text-2xl font-medium text-foreground">Deteksi Suara AI</h1>
         <p className="text-sm text-muted-foreground mt-1">
-          Unggah atau rekam suara batuk, lalu pilih algoritma untuk mendeteksi indikasi TBC.
+          Unggah atau rekam suara batuk, verifikasi potongannya, lalu pilih algoritma untuk deteksi TBC.
         </p>
       </div>
 
@@ -206,7 +231,7 @@ function DeteksiSuaraContent() {
             <span className="w-5 h-5 rounded-full bg-primary/10 text-primary text-[11px] flex items-center justify-center font-semibold">
               1
             </span>
-            Sumber suara
+            Sumber suara mentah
           </p>
 
           <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as "upload" | "record")}>
@@ -247,7 +272,10 @@ function DeteksiSuaraContent() {
                       <X className="w-4 h-4" />
                     </Button>
                   </div>
-                  {uploadPreviewUrl && <audio controls src={uploadPreviewUrl} className="w-full h-10" />}
+                  {/* Pemutar suara asli disembunyikan jika sudah di-crop agar user tidak bingung */}
+                  {!croppedAudioBase64 && uploadPreviewUrl && (
+                    <audio controls src={uploadPreviewUrl} className="w-full h-10" />
+                  )}
                 </div>
               )}
             </TabsContent>
@@ -280,7 +308,10 @@ function DeteksiSuaraContent() {
                       <X className="w-4 h-4" />
                     </Button>
                   </div>
-                  {recordPreviewUrl && <audio controls src={recordPreviewUrl} className="w-full h-10" />}
+                  {/* Pemutar suara asli disembunyikan jika sudah di-crop */}
+                  {!croppedAudioBase64 && recordPreviewUrl && (
+                    <audio controls src={recordPreviewUrl} className="w-full h-10" />
+                  )}
                 </div>
               )}
             </TabsContent>
@@ -289,7 +320,7 @@ function DeteksiSuaraContent() {
       </Card>
 
       {/* Step 2: Pilih algoritma */}
-      <Card className={cn("transition-opacity", !hasAudio && "opacity-40 pointer-events-none")}>
+      <Card className={cn("transition-opacity", (!hasAudio || croppedAudioBase64) && "opacity-40 pointer-events-none")}>
         <CardContent className="pt-5">
           <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-4 flex items-center gap-2">
             <span className="w-5 h-5 rounded-full bg-primary/10 text-primary text-[11px] flex items-center justify-center font-semibold">2</span>
@@ -316,16 +347,55 @@ function DeteksiSuaraContent() {
         </CardContent>
       </Card>
 
-      {/* Tombol deteksi */}
-      <div className="flex justify-end">
-        <Button size="lg" disabled={!hasAudio || isAnalyzing || showLayerAnimation || isProcessingResult} onClick={handleDeteksi} className="gap-2 min-w-[200px]">
-          {isAnalyzing ? (
-            <><Loader2 className="w-4 h-4 animate-spin" /> Menganalisis AI...</>
-          ) : (
-            <><Search className="w-4 h-4" /> Mulai Skrining TBC</>
-          )}
-        </Button>
-      </div>
+      {/* ====================================================== */}
+      {/* TOMBOL LOGIKA BERCABANG (CROP vs DETEKSI)              */}
+      {/* ====================================================== */}
+      
+      {!croppedAudioBase64 ? (
+        <div className="flex justify-end">
+          <Button size="lg" disabled={!hasAudio || isCropping} onClick={handleCropAudio} className="gap-2 min-w-[200px]">
+            {isCropping ? (
+              <><Loader2 className="w-4 h-4 animate-spin" /> Mengekstrak Suara...</>
+            ) : (
+              <><Scissors className="w-4 h-4" /> Ekstrak Puncak Batuk</>
+            )}
+          </Button>
+        </div>
+      ) : (
+        <div className="animate-in fade-in slide-in-from-bottom-4 space-y-6">
+          {/* Step 3: Card Validasi */}
+          <Card className="border-primary shadow-sm bg-primary/5">
+            <CardContent className="pt-5">
+              <p className="text-xs font-medium text-primary uppercase tracking-wider mb-4 flex items-center gap-2">
+                <span className="w-5 h-5 rounded-full bg-primary text-primary-foreground text-[11px] flex items-center justify-center font-semibold">3</span>
+                Validasi Potongan Suara
+              </p>
+              <div className="bg-background p-4 rounded-xl border border-primary/20">
+                <p className="text-sm text-muted-foreground mb-3">
+                  Pastikan ini adalah suara puncak batuk (1.2 detik). Jika AI salah memotong, silakan <b>Hapus</b> (X) di Step 1 dan unggah/rekam ulang.
+                </p>
+                <audio controls src={croppedAudioBase64} className="w-full h-12 outline-none" />
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Tombol Deteksi AI */}
+          <div className="flex justify-end">
+            <Button 
+              size="lg" 
+              disabled={isAnalyzing || showLayerAnimation || isProcessingResult} 
+              onClick={handleDeteksi} 
+              className="gap-2 min-w-[200px] bg-green-600 hover:bg-green-700 text-white shadow-md"
+            >
+              {isAnalyzing ? (
+                <><Loader2 className="w-4 h-4 animate-spin" /> Menganalisis AI...</>
+              ) : (
+                <><Search className="w-4 h-4" /> Ya, Analisis Suara Ini</>
+              )}
+            </Button>
+          </div>
+        </div>
+      )}
 
       {/* Animasi Layering */}
       {showLayerAnimation && (

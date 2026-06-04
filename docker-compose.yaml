@@ -4,19 +4,19 @@ services:
     image: mysql:8.0
     restart: always
     environment:
-      MYSQL_ALLOW_EMPTY_PASSWORD: 'yes' # Mengizinkan root tanpa password
-      MYSQL_DATABASE: db_tbcheckv2      # Otomatis membuat DB ini
+      MYSQL_ALLOW_EMPTY_PASSWORD: 'yes'
+      MYSQL_DATABASE: db_tbcheckv2
     ports:
       - "3306:3306"
     volumes:
-      - db_data:/var/lib/mysql          # Agar data aman walau Docker mati
+      - db_data:/var/lib/mysql
 
-  # 2. PHPMYADMIN (Pengganti UI XAMPP)
+  # 2. PHPMYADMIN
   phpmyadmin:
     image: phpmyadmin/phpmyadmin
     restart: always
     ports:
-      - "8080:80" # Akses di http://localhost:8080
+      - "8080:80"
     environment:
       PMA_HOST: db
       PMA_USER: root
@@ -29,11 +29,11 @@ services:
     build: ./backend_skrining_tbc
     ports:
       - "5000:5000"
-    volumes:
-      - ./backend_skrining_tbc:/app # Hubungkan folder ke Docker
+    # volumes:
+    #   - ./backend_skrining_tbc:/app  <-- Dimatikan agar tidak menimpa file Docker
     environment:
-      - FLASK_ENV=development
-      - FLASK_DEBUG=1               # Bikin Flask auto-restart kalau di-save
+      - FLASK_ENV=production
+      - PYTHONUNBUFFERED=1           # <-- Ditambahkan agar log langsung muncul
     depends_on:
       - db
 
@@ -42,12 +42,11 @@ services:
     build: ./frontend_skrining_tbc
     ports:
       - "3000:3000"
-    volumes:
-      - ./frontend_skrining_tbc:/app # Hubungkan folder ke Docker
-      - /app/node_modules            # Mencegah error library Node.js
+    # volumes:
+    #   - ./frontend_skrining_tbc:/app <-- Dimatikan agar folder .next tidak hilang
+    #   - /app/node_modules
     depends_on:
       - backend-ai
 
-# Wajib daftarkan volume penyimpanan database di paling bawah
 volumes:
   db_data:

@@ -1,77 +1,88 @@
-import api from "./api"; 
 import axios from "axios";
 import { getActiveToken } from "./auth.services"; 
 
+export interface MathDetailsSigmoid {
+  aktivasi: string;
+  probabilitas_p: number;
+  raw_logit_z: number;
+  threshold: number;
+  rumus: string;
+  keterangan: string;
+}
+
 export interface SkriningData {
   skrining_id?: number;
-  hasil_deteksi_akhir: string;
-  probabilitas_tbc: number;
-  probabilitas_normal: number;
-  spectrogram_image: string;
-  math_details: {
-    z_tbc: number;
-    z_norm: number;
-    exp_tbc: number;
-    exp_norm: number;
-    sum_exp: number;
-  };
+  hasil_deteksi_akhir?: string;
+  probabilitas_tbc?: number;
+  spectrogram_image?: string;
+  file_suara_url?: string;
+  math_details?: MathDetailsSigmoid;
+  audio_base64?: string;
 }
 
 export interface SkriningResponse {
   status: "success" | "error" | "fail";
   message?: string;
   data?: SkriningData;
+  audio_base64?: string; // Khusus untuk response preview
 }
 
 export class SkriningSuaraService {
-  static async deteksi(
-    audioData: File | Blob,
-    fileName: string,
-    model: "cnn" | "densenet" = "cnn",
-    skriningId?: number | string
-  ): Promise<SkriningResponse> {
-    
-    // Validasi super ketat agar tidak ditolak Flask
-    if (!skriningId || skriningId === "0" || skriningId === 0) {
-        return {
-            status: "error",
-            message: "ID Skrining tidak valid. Harap isi form gejala terlebih dahulu."
-        };
-    }
+  private static getHeaders() {
+    const token = getActiveToken();
+    if (!token) throw new Error("Sesi telah habis. Silakan login kembali.");
+    return { Authorization: `Bearer ${token}` };
+  }
 
-    // Siapkan data biner untuk dikirim ke backend
+  // TAHAP 1: Minta Backend memotong suara 1.2 detik
+  static async previewCrop(
+    audioData: File | Blob,
+    fileName: string
+  ): Promise<SkriningResponse> {
     const formData = new FormData();
     formData.append("audio", audioData, fileName);
-    formData.append("model", model);
-    formData.append("skrining_id", String(skriningId));
 
     try {
-      // Ambil token sesi aktif milik User/Kader
-      const token = getActiveToken();
-      if (!token) {
-        throw new Error("Sesi telah habis. Silakan login kembali.");
-      }
-
-      // Gunakan axios murni untuk menghindari default header dari api.ts
       const API_URL = process.env.NEXT_PUBLIC_API_URL || "/api_flask";
-      const response = await axios.post(`${API_URL}/skrining/audio`, formData, {
-        headers: {
-          "Authorization": `Bearer ${token}`,
-          // Biarkan axios otomatis menambahkan Content-Type: multipart/form-data beserta boundary-nya
-        },
+      const response = await axios.post(`${API_URL}/skrining/audio/preview`, formData, {
+        headers: this.getHeaders(),
       });
-
       return response.data;
-      
     } catch (error: any) {
-      console.error("API Error AI Suara:", error);
-      
-      // Menangkap pesan error spesifik dari Flask (misal: "Suara terlalu pelan")
-      const errorMessage = error.response?.data?.message || error.message || "Gagal memproses AI Suara.";
-      
+      console.error("Error Preview Audio:", error);
       return {
         status: "error",
-        message: errorMessage,
+        message: error.response?.data?.message || "Gagal memotong audio.",
+      };
+    }
+  }
+
+  // TAHAP 2: Eksekusi Deteksi AI dengan Base64
+  static async deteksiAI(
+    audioBase64: string,
+    model: "cnn" | "densenet",
+    skriningId: number | string
+  ): Promise<SkriningResponse> {
+    try {
+      const API_URL = process.env.NEXT_PUBLIC_API_URL || "/api_flask";
+      const payload = {
+        skrining_id: Number(skriningId),
+        model: model,
+        audio_base64: audioBase64
+      };
+
+      const response = await axios.post(`${API_URL}/skrining/audio/detect`, payload, {
+        headers: {
+          ...this.getHeaders(),
+          "Content-Type": "application/json"
+        },
+      });
+      return response.data;
+    } catch (error: any) {
+      console.error("Error Deteksi AI:", error);
+      return {
+        status: "error",
+        message: error.response?.data?.message || "Gagal memproses analisis AI.",
       };
     }
   }

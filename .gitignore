@@ -1,6 +1,7 @@
 # --- Dependencies ---
 node_modules/
 /vendor/
+.venv/
 
 
 # --- Environment Variables (SANGAT PENTING) ---

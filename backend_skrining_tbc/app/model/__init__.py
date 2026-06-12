@@ -6,3 +6,4 @@ from .pasien import Pasien              # Bergantung pada User & Kecamatan
 from .skrining import Skrining          # Bergantung pada User & Pasien
 from .token_block_list import TokenBlocklist  # Tidak bergantung pada tabel lain
 from .rujukan import Rujukan
+from .evaluasi import EvaluasiModel

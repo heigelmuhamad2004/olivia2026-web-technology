@@ -10,12 +10,12 @@ import {
   Plus,
   Search,
   Trash2,
-  User,
   User2,
 } from "lucide-react"
 import { useForm } from "react-hook-form"
 import * as z from "zod"
-import { toast } from "sonner"
+import { motion, Variants } from "framer-motion"
+import { customToast } from "@/components/ui/alert-1"
 
 import {
   getMyPatients,
@@ -24,6 +24,7 @@ import {
   deletePatient,
 } from "@/app/services/pasien.services"
 import { Button } from "@/components/ui/button"
+import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import {
   Card,
   CardContent,
@@ -85,6 +86,17 @@ const formSchema = z.object({
 
 type EditFormValues = z.infer<typeof formSchema>
 
+// --- Variabel Animasi ---
+const FADE_IN_VARIANTS: Variants = {
+  hidden: { opacity: 0, y: 10 },
+  show: { opacity: 1, y: 0, transition: { type: "spring", stiffness: 100 } },
+}
+
+const STAGGER_CONTAINER: Variants = {
+  hidden: {},
+  show: { transition: { staggerChildren: 0.1 } },
+}
+
 export default function DataPasienPage() {
   const [patients, setPatients] = React.useState<Patient[]>([])
   const [isLoading, setIsLoading] = React.useState(true)
@@ -109,7 +121,7 @@ export default function DataPasienPage() {
       setPatients(data)
     } catch (error) {
       console.error(error)
-      toast.error("Gagal memuat data pasien")
+      customToast.error("Gagal memuat data pasien")
     } finally {
       setIsLoading(false)
     }
@@ -144,13 +156,13 @@ export default function DataPasienPage() {
 
     try {
       await deletePatient(patientToDelete.id)
-      toast.success(`Data pasien ${patientToDelete.nama} berhasil dihapus`)
+      customToast.success(`Data pasien ${patientToDelete.nama} berhasil dihapus`)
       setPatientToDelete(null)
       setIsDeleteAlertOpen(false)
       fetchPatients()
     } catch (error) {
       console.error(error)
-      toast.error("Gagal menghapus data pasien")
+      customToast.error("Gagal menghapus data pasien")
     }
   }
 
@@ -164,12 +176,13 @@ export default function DataPasienPage() {
       }
 
       await updatePatient(selectedPatient.id, payload)
-      toast.success(`Data ${values.nama} berhasil diperbarui!`)
+      customToast.success(`Data ${values.nama} berhasil diperbarui!`)
       setIsEditModalOpen(false)
       setSelectedPatient(null)
       fetchPatients()
     } catch (error) {
-      toast.error("Gagal memperbarui data pasien")
+      console.error(error)
+      customToast.error("Gagal memperbarui data pasien")
     }
   }
 
@@ -179,16 +192,21 @@ export default function DataPasienPage() {
     patient.nik.includes(searchQuery)
   )
 
+  // Helper untuk mendapatkan inisial nama
+  const getInitials = (name: string) => {
+    return name.split(" ").map(n => n[0]).join("").substring(0, 2).toUpperCase();
+  }
+
   return (
     <div className="mx-auto max-w-7xl p-4 sm:p-6 lg:p-8">
       <div className="mb-8 flex flex-col items-start justify-between gap-4 sm:flex-row sm:items-center">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">Data Pasien</h1>
+          <h1 className="text-3xl font-semibold tracking-tight text-foreground">Data pasien.</h1>
           <p className="text-muted-foreground mt-1">
             Kelola data pasien Anda di sini.
           </p>
         </div>
-        <Button asChild className="gap-2">
+        <Button asChild className="gap-2 rounded-full px-5 h-10 shadow-sm">
           <Link href="/user/screening-data">
             <Plus className="h-4 w-4" /> Tambah Pasien
           </Link>
@@ -196,7 +214,7 @@ export default function DataPasienPage() {
       </div>
 
       {/* Search Bar */}
-      <div className="mb-6 flex items-center gap-2 rounded-lg border bg-card px-3 py-2 shadow-sm max-w-md w-full">
+      <div className="mb-6 flex items-center gap-2 rounded-md border bg-card px-3 py-2 shadow-[0px_1px_1px_#00000005,0px_2px_2px_#0000000a] max-w-md w-full">
         <Search className="h-4 w-4 text-muted-foreground" />
         <input
           type="text"
@@ -213,36 +231,58 @@ export default function DataPasienPage() {
           <p className="col-span-full text-center text-muted-foreground">Memuat data...</p>
         </div>
       ) : filteredPatients.length === 0 ? (
-        <div className="flex flex-col items-center justify-center rounded-lg border border-dashed p-10 text-center">
-          <User2 className="h-10 w-10 text-muted-foreground mb-4 opacity-50" />
-          <h3 className="text-lg font-semibold">Belum ada data pasien</h3>
-          <p className="text-sm text-muted-foreground max-w-sm mt-1 mb-4">
-            {searchQuery ? "Tidak ditemukan pasien dengan nama/NIK tersebut." : "Mulai dengan menambahkan data pasien baru untuk melakukan skrining."}
-          </p>
+        <motion.div 
+          initial="hidden" 
+          animate="show" 
+          variants={STAGGER_CONTAINER}
+          className="flex flex-col items-center justify-center rounded-lg border border-dashed bg-card p-12 text-center shadow-[0px_1px_1px_#00000005,0px_2px_2px_#0000000a]"
+        >
+          <motion.div 
+            variants={FADE_IN_VARIANTS}
+            animate={{ y: [0, -10, 0] }} 
+            transition={{ repeat: Infinity, duration: 3, ease: "easeInOut" }}
+            className="mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-muted"
+          >
+            <User2 className="h-8 w-8 text-muted-foreground opacity-60" />
+          </motion.div>
+          <motion.h3 variants={FADE_IN_VARIANTS} className="text-lg font-semibold text-foreground">
+            Belum ada data pasien.
+          </motion.h3>
+          <motion.p variants={FADE_IN_VARIANTS} className="text-sm text-muted-foreground max-w-sm mt-2 mb-6">
+            {searchQuery 
+              ? "Tidak ditemukan pasien dengan nama/NIK tersebut." 
+              : "Mulai dengan menambahkan data pasien baru untuk melakukan skrining kesehatan berkala."}
+          </motion.p>
           {!searchQuery && (
-            <Button asChild variant="outline">
-              <Link href="/user/screening-data">Tambah Pasien Sekarang</Link>
-            </Button>
+            <motion.div variants={FADE_IN_VARIANTS}>
+              <Button asChild variant="outline" className="rounded-full px-6 shadow-sm">
+                <Link href="/user/screening-data">Tambah Pasien Sekarang</Link>
+              </Button>
+            </motion.div>
           )}
-        </div>
+        </motion.div>
       ) : (
-        <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+        <motion.div 
+          initial="hidden" 
+          animate="show" 
+          variants={STAGGER_CONTAINER}
+          className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4"
+        >
           {filteredPatients.map((patient) => (
-            <Card key={patient.id} className="group overflow-hidden transition-all hover:shadow-lg hover:border-primary/50">
+            <motion.div key={patient.id} variants={FADE_IN_VARIANTS}>
+            <Card className="group overflow-hidden transition-all hover:shadow-[0px_2px_2px_#0000000a,0px_8px_16px_-4px_#0000000a] hover:border-primary/40 rounded-lg shadow-[0px_1px_1px_#00000005,0px_2px_2px_#0000000a] bg-card">
               <CardHeader className="relative p-5 pb-2">
                 <div className="flex items-start justify-between">
-                  <div className="flex h-12 w-12 items-center justify-center rounded-full bg-primary/10 text-primary">
-                    {patient.jenis_kelamin === "Laki-Laki" ? (
-                      <User className="h-6 w-6" />
-                    ) : (
-                      <User className="h-6 w-6" /> // Bisa pakai icon lain kalau ada untuk perempuan
-                    )}
-                  </div>
-                  <Badge variant={patient.jenis_kelamin === "Laki-Laki" ? "default" : "secondary"}>
+                  <Avatar className="h-10 w-10 border border-border">
+                    <AvatarFallback className={patient.jenis_kelamin === "Laki-Laki" ? "bg-blue-500/10 text-blue-600 dark:text-blue-400" : "bg-pink-500/10 text-pink-600 dark:text-pink-400"}>
+                      <span className="text-xs font-semibold">{getInitials(patient.nama)}</span>
+                    </AvatarFallback>
+                  </Avatar>
+                  <Badge variant="secondary" className="bg-muted text-muted-foreground rounded-full px-2.5">
                     {patient.jenis_kelamin === "Laki-Laki" ? "L" : "P"}
                   </Badge>
                 </div>
-                <h3 className="mt-4 font-semibold text-lg line-clamp-1 group-hover:text-primary transition-colors">
+                <h3 className="mt-4 font-semibold text-base line-clamp-1 group-hover:text-primary transition-colors">
                   {patient.nama}
                 </h3>
                 <p className="text-xs text-muted-foreground font-mono bg-muted/50 px-2 py-0.5 rounded w-fit mt-1">
@@ -251,46 +291,47 @@ export default function DataPasienPage() {
               </CardHeader>
               <CardContent className="p-5 pt-2 space-y-2.5">
                 <div className="flex items-center gap-2.5 text-sm text-muted-foreground">
-                  <User2 className="h-4 w-4 shrink-0" />
+                  <User2 className="h-3.5 w-3.5 shrink-0 opacity-70" />
                   <span>{patient.usia} Tahun</span>
                 </div>
                 <div className="flex items-center gap-2.5 text-sm text-muted-foreground">
-                  <Calendar className="h-4 w-4 shrink-0" />
+                  <Calendar className="h-3.5 w-3.5 shrink-0 opacity-70" />
                   <span>{patient.tanggal_lahir}</span>
                 </div>
                 <div className="flex items-start gap-2.5 text-sm text-muted-foreground">
-                  <MapPin className="h-4 w-4 shrink-0 mt-0.5" />
+                  <MapPin className="h-3.5 w-3.5 shrink-0 mt-0.5 opacity-70" />
                   <span className="line-clamp-2">{patient.alamat}</span>
                 </div>
               </CardContent>
-              <CardFooter className="p-4 pt-0 flex gap-2">
+              <CardFooter className="p-4 flex gap-2 border-t border-border mt-2">
                 <Button
                   variant="outline"
                   size="sm"
-                  className="flex-1 gap-2 hover:bg-secondary"
+                  className="flex-1 gap-1.5 hover:bg-secondary rounded-md h-8 text-xs"
                   onClick={() => handleEditClick(patient)}
                 >
                   <Edit2 className="h-3.5 w-3.5" /> Edit
                 </Button>
                 <Button
-                  variant="destructive"
+                  variant="ghost"
                   size="sm"
-                  className="flex-1 gap-2 hover:bg-red-600"
+                  className="flex-1 gap-1.5 text-destructive hover:bg-destructive/10 hover:text-destructive rounded-md h-8 text-xs"
                   onClick={() => handleDeleteClick(patient)}
                 >
                   <Trash2 className="h-3.5 w-3.5" /> Hapus
                 </Button>
               </CardFooter>
             </Card>
+            </motion.div>
           ))}
-        </div>
+        </motion.div>
       )}
 
       {/* Dialog Edit */}
       <Dialog open={isEditModalOpen} onOpenChange={setIsEditModalOpen}>
         <DialogContent className="sm:max-w-lg">
           <DialogHeader>
-            <DialogTitle>Edit Data Pasien</DialogTitle>
+            <DialogTitle>Edit data pasien.</DialogTitle>
             <DialogDescription>
               Perbarui informasi untuk pasien{" "}
               <span className="font-semibold text-foreground">{selectedPatient?.nama}</span>.
@@ -299,13 +340,13 @@ export default function DataPasienPage() {
           <Form {...form}>
             <form
               onSubmit={form.handleSubmit(onEditSubmit)}
-              className="grid max-h-[70vh] gap-4 overflow-y-auto px-1 py-4"
+              className="grid grid-cols-1 md:grid-cols-2 max-h-[70vh] gap-5 overflow-y-auto px-1 py-2"
             >
               <FormField
                 control={form.control}
                 name="nama"
                 render={({ field }) => (
-                  <FormItem>
+                  <FormItem className="md:col-span-2">
                     <FormLabel>Nama</FormLabel>
                     <FormControl>
                       <Input placeholder="Nama lengkap" {...field} />
@@ -318,7 +359,7 @@ export default function DataPasienPage() {
                 control={form.control}
                 name="nik"
                 render={({ field }) => (
-                  <FormItem>
+                  <FormItem className="md:col-span-2">
                     <FormLabel>NIK</FormLabel>
                     <FormControl>
                       <Input placeholder="16 digit NIK" {...field} />
@@ -327,7 +368,6 @@ export default function DataPasienPage() {
                   </FormItem>
                 )}
               />
-              <div className="grid grid-cols-2 gap-4">
                 <FormField
                   control={form.control}
                   name="usia"
@@ -362,7 +402,6 @@ export default function DataPasienPage() {
                     </FormItem>
                   )}
                 />
-              </div>
               <FormField
                 control={form.control}
                 name="tanggal_lahir"
@@ -393,7 +432,7 @@ export default function DataPasienPage() {
                 control={form.control}
                 name="alamat"
                 render={({ field }) => (
-                  <FormItem>
+                  <FormItem className="md:col-span-2">
                     <FormLabel>Alamat</FormLabel>
                     <FormControl>
                       <Input placeholder="Alamat lengkap" {...field} />
@@ -406,7 +445,7 @@ export default function DataPasienPage() {
                 control={form.control}
                 name="pekerjaan"
                 render={({ field }) => (
-                  <FormItem>
+                  <FormItem className="md:col-span-2">
                     <FormLabel>Pekerjaan</FormLabel>
                     <FormControl>
                       <Input placeholder="Pekerjaan" {...field} />
@@ -415,9 +454,9 @@ export default function DataPasienPage() {
                   </FormItem>
                 )}
               />
-              <DialogFooter>
-                <Button type="button" variant="outline" onClick={() => setIsEditModalOpen(false)}>Batal</Button>
-                <Button type="submit">Simpan Perubahan</Button>
+              <DialogFooter className="md:col-span-2 mt-4">
+                <Button type="button" variant="ghost" className="rounded-full px-6" onClick={() => setIsEditModalOpen(false)}>Batal</Button>
+                <Button type="submit" className="rounded-full px-6 shadow-sm">Simpan Perubahan</Button>
               </DialogFooter>
             </form>
           </Form>
@@ -428,7 +467,7 @@ export default function DataPasienPage() {
       <AlertDialog open={isDeleteAlertOpen} onOpenChange={setIsDeleteAlertOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Apakah Anda yakin?</AlertDialogTitle>
+            <AlertDialogTitle>Apakah Anda yakin.</AlertDialogTitle>
             <AlertDialogDescription>
               Tindakan ini tidak dapat dibatalkan. Data pasien{" "}
               <span className="font-semibold text-foreground">{patientToDelete?.nama}</span>{" "}
@@ -436,10 +475,10 @@ export default function DataPasienPage() {
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Batal</AlertDialogCancel>
+            <AlertDialogCancel className="rounded-full px-6">Batal</AlertDialogCancel>
             <AlertDialogAction
               onClick={confirmDelete}
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              className="bg-destructive text-white hover:bg-destructive/90 rounded-full px-6 shadow-sm"
             >
               Ya, Hapus
             </AlertDialogAction>

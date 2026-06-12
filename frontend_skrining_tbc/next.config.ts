@@ -30,7 +30,7 @@ const nextConfig: NextConfig = {
         // Semua request ke "/api_flask/..." di browser...
         source: '/api_flask/:path*',
         // ...akan diteruskan secara rahasia ke service "backend-ai" di Docker
-        destination: 'http://backend-ai:5000/:path*', 
+        destination: 'http://127.0.0.1:5000/:path*', 
       },
     ];
   },

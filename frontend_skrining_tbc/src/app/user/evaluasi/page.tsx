@@ -1,47 +1,65 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { Card, CardContent } from "@/components/ui/card"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { Loader2, User, Calendar, Activity, FileImage, Mic, ClipboardList } from "lucide-react"
+import { Loader2, User, CalendarClock, Activity, Mic, ClipboardList, Stethoscope, Fingerprint, History, Calculator } from "lucide-react"
 import api from "@/app/services/api"
 import { getActiveToken } from "@/app/services/auth.services"
 import { getRiwayatSkriningByPasien, SkriningRiwayat } from "@/app/services/skrining.services"
 
-// Interface untuk data Pasien
 interface Pasien {
   id: number;
   nama: string;
   nik: string;
-  jenis_kelamin: string;
-  usia: number;
+}
+
+interface DualModelMetrics {
+  cnn: { 
+    probabilitas: number; 
+    diagnosis: string; 
+    spectrogram_image: string; 
+    metrics?: { rmse: number; mae: number; mse: number }; 
+  };
+  densenet: { 
+    probabilitas: number; 
+    diagnosis: string; 
+    spectrogram_image: string; 
+    metrics?: { rmse: number; mae: number; mse: number }; 
+  };
+  metrics?: { rmse: number; mae: number; made?: number; mse?: number }; 
+}
+
+const formatTanggalJam = (dateString: string) => {
+  try {
+    const date = new Date(dateString);
+    if (isNaN(date.getTime())) return dateString;
+    return new Intl.DateTimeFormat('id-ID', {
+      day: '2-digit', month: 'short', year: 'numeric',
+      hour: '2-digit', minute: '2-digit'
+    }).format(date);
+  } catch {
+    return dateString;
+  }
 }
 
 export default function DashboardEvaluasi() {
   const [pasienList, setPasienList] = useState<Pasien[]>([])
   const [selectedPasien, setSelectedPasien] = useState<Pasien | null>(null)
-  
   const [riwayat, setRiwayat] = useState<SkriningRiwayat[]>([])
   const [isLoadingPasien, setIsLoadingPasien] = useState(true)
   const [isLoadingRiwayat, setIsLoadingRiwayat] = useState(false)
 
-  // 1. Ambil daftar pasien saat halaman dimuat
   useEffect(() => {
     const fetchPasien = async () => {
       try {
         const token = getActiveToken()
-        const res = await api.get('/pasien', {
-          headers: { Authorization: `Bearer ${token}` }
-        })
+        const res = await api.get('/pasien', { headers: { Authorization: `Bearer ${token}` } })
         const data = res.data.data || res.data
         setPasienList(data)
-        
-        // Pilih pasien pertama secara otomatis jika ada
-        if (data.length > 0) {
-          handleSelectPasien(data[0])
-        }
+        if (data.length > 0) handleSelectPasien(data[0])
       } catch (error) {
-        console.error("Gagal memuat daftar pasien", error)
+        console.error("Gagal memuat pasien", error)
       } finally {
         setIsLoadingPasien(false)
       }
@@ -49,7 +67,6 @@ export default function DashboardEvaluasi() {
     fetchPasien()
   }, [])
 
-  // 2. Ambil riwayat saat pasien dipilih
   const handleSelectPasien = async (pasien: Pasien) => {
     setSelectedPasien(pasien)
     setIsLoadingRiwayat(true)
@@ -65,168 +82,309 @@ export default function DashboardEvaluasi() {
   }
 
   return (
-    <div className="max-w-7xl mx-auto py-8 px-4 sm:px-6 flex flex-col h-[calc(100vh-4rem)]">
-      <div className="mb-6 shrink-0">
-        <h1 className="text-3xl font-bold text-foreground">Dashboard Evaluasi AI</h1>
-        <p className="text-muted-foreground mt-1">
-          Pantau konsistensi dan hasil deteksi algoritma (Form & Suara) berdasarkan riwayat data pasien.
-        </p>
-      </div>
-
-      <div className="flex flex-col md:flex-row gap-6 flex-1 min-h-0">
+    <div className="min-h-screen bg-slate-50/50 pb-20">
+      <div className="max-w-7xl mx-auto py-10 px-4 sm:px-6">
         
-        {/* ========================================= */}
-        {/* SIDEBAR KIRI: DAFTAR PASIEN               */}
-        {/* ========================================= */}
-        <Card className="w-full md:w-1/3 lg:w-1/4 flex flex-col shadow-sm border-muted overflow-hidden">
-          <div className="p-4 border-b bg-muted/30 shrink-0">
-            <h2 className="font-semibold flex items-center gap-2">
-              <User className="w-4 h-4 text-primary" /> Daftar Pasien
-            </h2>
-          </div>
-          {/* Scroll Area Manual */}
-          <div className="flex-1 overflow-y-auto">
-            {isLoadingPasien ? (
-              <div className="flex justify-center py-10"><Loader2 className="w-6 h-6 animate-spin text-muted-foreground" /></div>
-            ) : pasienList.length === 0 ? (
-              <div className="p-4 text-center text-sm text-muted-foreground">Belum ada data pasien.</div>
-            ) : (
-              <div className="p-2 space-y-1">
-                {pasienList.map((p) => (
-                  <button
-                    key={p.id}
-                    onClick={() => handleSelectPasien(p)}
-                    className={`w-full text-left px-4 py-3 rounded-xl transition-all ${
-                      selectedPasien?.id === p.id 
-                        ? 'bg-primary text-primary-foreground shadow-md' 
-                        : 'hover:bg-muted text-foreground'
-                    }`}
-                  >
-                    <p className="font-medium text-sm truncate">{p.nama}</p>
-                    <p className={`text-xs mt-1 ${selectedPasien?.id === p.id ? 'text-primary-foreground/80' : 'text-muted-foreground'}`}>
-                      NIK: {p.nik}
-                    </p>
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
-        </Card>
+        <div className="mb-8">
+          <h1 className="text-3xl font-extrabold text-slate-900 tracking-tight">Dashboard Evaluasi AI</h1>
+          <p className="text-slate-500 mt-2 text-lg">Pantau komparasi algoritma dan bedah rumus perhitungan error secara langsung.</p>
+        </div>
 
-        {/* ========================================= */}
-        {/* KONTEN KANAN: GRID CARD RIWAYAT SKRINING  */}
-        {/* ========================================= */}
-        <div className="flex-1 flex flex-col min-h-0 bg-muted/10 rounded-xl border border-muted p-4 sm:p-6 overflow-hidden">
-          {selectedPasien && (
-            <div className="mb-4 shrink-0 flex items-center justify-between">
-              <div>
-                <h2 className="text-xl font-bold">Data Skrining: {selectedPasien.nama}</h2>
-                <p className="text-sm text-muted-foreground">Menampilkan seluruh riwayat pengujian untuk pasien ini.</p>
-              </div>
-              <Badge variant="outline" className="bg-white">{riwayat.length} Riwayat</Badge>
-            </div>
-          )}
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+          
+          <div className="lg:col-span-4">
+            <Card className="shadow-md border-slate-200 sticky top-8">
+              <CardHeader className="bg-slate-100/50 border-b border-slate-100 pb-4">
+                <CardTitle className="text-lg font-bold flex items-center gap-2 text-slate-800">
+                  <User className="w-5 h-5 text-indigo-600" /> Daftar Pasien
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="p-0">
+                <div className="max-h-[600px] overflow-y-auto p-3 space-y-2 custom-scrollbar">
+                  {isLoadingPasien ? (
+                    <div className="flex flex-col items-center justify-center py-12 text-slate-400">
+                      <Loader2 className="w-8 h-8 animate-spin mb-2" />
+                      <p className="text-sm">Memuat data...</p>
+                    </div>
+                  ) : (
+                    pasienList.map((p) => (
+                      <button
+                        key={p.id} onClick={() => handleSelectPasien(p)}
+                        className={`w-full text-left px-5 py-4 rounded-xl transition-all border ${
+                          selectedPasien?.id === p.id 
+                            ? 'bg-indigo-600 text-white border-indigo-700 shadow-md' 
+                            : 'bg-white hover:bg-slate-50 hover:border-indigo-200 border-transparent text-slate-700'
+                        }`}
+                      >
+                        <p className="font-semibold text-base truncate">{p.nama}</p>
+                        <p className={`text-xs mt-1.5 flex items-center gap-1 ${selectedPasien?.id === p.id ? 'text-indigo-200' : 'text-slate-400'}`}>
+                          <Fingerprint className="w-3 h-3" /> NIK: {p.nik}
+                        </p>
+                      </button>
+                    ))
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+          </div>
 
-          {/* Scroll Area Manual */}
-          <div className="flex-1 overflow-y-auto pr-2">
+          <div className="lg:col-span-8 space-y-6">
             {isLoadingRiwayat ? (
-              <div className="flex h-full items-center justify-center py-20">
-                <Loader2 className="w-8 h-8 animate-spin text-primary" />
+              <div className="flex flex-col items-center justify-center py-32 bg-white rounded-2xl border border-dashed border-slate-300">
+                <Loader2 className="w-10 h-10 animate-spin text-indigo-600 mb-4" />
+                <p className="text-slate-500 font-medium">Mengambil riwayat skrining...</p>
               </div>
             ) : riwayat.length === 0 ? (
-              <div className="flex flex-col items-center justify-center py-20 text-center border-2 border-dashed rounded-xl border-muted">
-                <ClipboardList className="w-10 h-10 text-muted-foreground mb-3 opacity-50" />
-                <p className="font-medium">Tidak ada riwayat skrining</p>
-                <p className="text-sm text-muted-foreground mt-1">Pasien ini belum pernah melakukan skrining form maupun suara.</p>
+              <div className="flex flex-col items-center justify-center py-32 bg-white rounded-2xl border border-dashed border-slate-300 text-center px-4">
+                <History className="w-16 h-16 text-slate-200 mb-4" />
+                <h3 className="text-xl font-bold text-slate-700">Belum Ada Riwayat</h3>
+                <p className="text-slate-500 mt-2 max-w-sm">Pasien ini belum pernah melakukan skrining suara maupun fisik.</p>
               </div>
             ) : (
-              <div className="grid grid-cols-1 xl:grid-cols-2 gap-4 pb-10">
-                {riwayat.map((item, index) => {
-                  const isSuspectForm = item.hasil_screening.toLowerCase() === "terduga";
-                  const hasAudioAI = item.skor_suara_ai !== null && item.skor_suara_ai !== undefined;
-                  const isSuspectVoice = hasAudioAI && item.skor_suara_ai! > 50;
+              riwayat.map((item, index) => {
+                const isSuspectForm = item.hasil_screening.toLowerCase() === "terduga";
+                const dualData = item.detail_matematika as DualModelMetrics | undefined;
+                const isDualModel = dualData && dualData.cnn !== undefined && dualData.densenet !== undefined;
+
+                // Kunci Jawaban Asli (Ground Truth = y)
+                const groundTruth = isSuspectForm ? 100 : 0;
+                
+                let cnnPred = "0", cnnAbs = "0", cnnSq = "0";
+                let densePred = "0", denseAbs = "0", denseSq = "0";
+                
+                if (isDualModel && dualData) {
+                  // Variabel CNN
+                  cnnPred = dualData.cnn.probabilitas.toFixed(2);
+                  cnnAbs = Math.abs(groundTruth - dualData.cnn.probabilitas).toFixed(2);
+                  cnnSq = Math.pow(groundTruth - dualData.cnn.probabilitas, 2).toFixed(2);
                   
-                  return (
-                    <Card key={item.id} className="border-2 hover:border-primary/50 transition-colors shadow-sm">
-                      <CardContent className="p-0">
-                        {/* Header Card */}
-                        <div className="flex justify-between items-center p-4 border-b bg-muted/20">
-                          <div className="flex items-center gap-2">
-                            <span className="w-6 h-6 rounded-full bg-primary/10 text-primary flex items-center justify-center text-xs font-bold">
-                              {riwayat.length - index}
-                            </span>
-                            <div className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
-                              <Calendar className="w-3.5 h-3.5" />
-                              {item.tanggal_screening}
-                            </div>
-                          </div>
-                          <Badge variant="outline" className="text-[10px] font-semibold bg-white">
-                            {item.metode_skrining || "Form Only"}
-                          </Badge>
+                  // Variabel DenseNet
+                  densePred = dualData.densenet.probabilitas.toFixed(2);
+                  denseAbs = Math.abs(groundTruth - dualData.densenet.probabilitas).toFixed(2);
+                  denseSq = Math.pow(groundTruth - dualData.densenet.probabilitas, 2).toFixed(2);
+                }
+
+                return (
+                  <Card key={item.id} className={`overflow-hidden transition-all duration-300 shadow-sm hover:shadow-md ${isDualModel ? 'border-indigo-200' : 'border-slate-200'}`}>
+                    
+                    <div className={`px-6 py-4 border-b flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 ${isDualModel ? 'bg-indigo-50/50' : 'bg-slate-50/50'}`}>
+                      <div className="flex items-center gap-3">
+                        <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold shadow-sm ${isDualModel ? 'bg-indigo-600 text-white' : 'bg-slate-200 text-slate-600'}`}>
+                          #{riwayat.length - index}
                         </div>
+                        <div>
+                          <p className="text-sm font-bold text-slate-800 flex items-center gap-1.5">
+                            <CalendarClock className="w-4 h-4 text-slate-500" />
+                            {formatTanggalJam(item.tanggal_screening)}
+                          </p>
+                        </div>
+                      </div>
+                      <Badge variant="outline" className={`px-3 py-1 font-semibold ${isDualModel ? "bg-indigo-100 text-indigo-700 border-indigo-200" : "bg-white text-slate-600"}`}>
+                        {item.metode_skrining || "Form Only"}
+                      </Badge>
+                    </div>
 
-                        <div className="p-4 space-y-4">
-                          {/* Hasil Form */}
-                          <div className="flex justify-between items-center">
-                            <span className="text-sm font-medium flex items-center gap-2 text-muted-foreground">
-                              <ClipboardList className="w-4 h-4" /> Hasil Form Fisik
-                            </span>
-                            <Badge className={isSuspectForm ? "bg-red-100 text-red-700 hover:bg-red-100" : "bg-green-100 text-green-700 hover:bg-green-100"} variant="secondary">
-                              {item.hasil_screening}
-                            </Badge>
+                    <CardContent className="p-6">
+                      
+                      <div className="flex justify-between items-center bg-slate-50 p-4 rounded-xl border border-slate-100 mb-6">
+                        <span className="text-sm font-bold text-slate-700 flex items-center gap-2">
+                          <ClipboardList className="w-5 h-5 text-slate-400" /> Hasil Form Fisik <span className="font-normal text-xs text-slate-400">(Kunci Asli)</span>
+                        </span>
+                        <Badge className={`px-4 py-1.5 text-sm ${isSuspectForm ? "bg-rose-100 text-rose-700 hover:bg-rose-200" : "bg-emerald-100 text-emerald-700 hover:bg-emerald-200"}`} variant="secondary">
+                          {item.hasil_screening}
+                        </Badge>
+                      </div>
+
+                      {isDualModel && dualData && dualData.cnn && dualData.densenet ? (
+                        <div className="space-y-6">
+                          <div className="flex items-center gap-3">
+                            <div className="h-px bg-slate-200 flex-1"></div>
+                            <h3 className="text-sm font-extrabold flex items-center gap-2 text-indigo-900 tracking-wide uppercase">
+                              <Activity className="w-4 h-4 text-indigo-600" /> Komparasi Model AI
+                            </h3>
+                            <div className="h-px bg-slate-200 flex-1"></div>
                           </div>
-
-                          {/* Hasil AI Suara (Jika Ada) */}
-                          {hasAudioAI ? (
-                            <>
-                              <hr className="border-dashed" />
+                          
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            
+                            {/* ===================== CARD CNN ===================== */}
+                            <div className="relative border border-blue-200 bg-gradient-to-b from-blue-50/50 to-white rounded-2xl p-5 flex flex-col shadow-sm">
+                              <div className="flex items-center gap-2 mb-4">
+                                <div className="w-2 h-2 rounded-full bg-blue-600"></div>
+                                <p className="text-sm font-extrabold text-blue-900 uppercase tracking-wider">Custom CNN</p>
+                              </div>
                               
-                              <div className="flex justify-between items-center">
-                                <span className="text-sm font-medium flex items-center gap-2 text-muted-foreground">
-                                  <Mic className="w-4 h-4" /> Prediksi Suara AI
-                                </span>
-                                <span className={`font-bold text-sm ${isSuspectVoice ? 'text-red-600' : 'text-green-600'}`}>
-                                  {isSuspectVoice ? 'Suspek TBC' : 'Normal'}
-                                </span>
+                              <div className="bg-slate-900 p-2 rounded-xl mb-5 shadow-inner">
+                                {/* eslint-disable-next-line @next/next/no-img-element */}
+                                <img src={dualData.cnn.spectrogram_image} alt="CNN Spectrogram" className="w-full aspect-square object-contain rounded-lg border border-slate-700" />
                               </div>
 
-                              <div className="bg-secondary/30 p-3 rounded-lg flex items-center justify-between border">
-                                <div className="flex items-center gap-2">
-                                  <Activity className="w-4 h-4 text-primary" />
-                                  <span className="text-xs font-medium text-foreground">Probabilitas (Sigmoid)</span>
+                              <div className="space-y-3 mb-6">
+                                <div className="flex justify-between items-center border-b border-slate-100 pb-2">
+                                  <span className="text-sm text-slate-500 font-medium">Probabilitas Tebakan</span>
+                                  <span className="font-mono text-base font-bold text-slate-800">{cnnPred}%</span>
                                 </div>
-                                <span className={`font-mono font-bold ${isSuspectVoice ? 'text-red-600' : 'text-green-600'}`}>
-                                  {item.skor_suara_ai?.toFixed(2)}%
-                                </span>
-                              </div>
-
-                              {item.gradcam_image && (
-                                <div className="space-y-2">
-                                  <span className="text-xs font-medium text-muted-foreground flex items-center gap-1.5">
-                                    <FileImage className="w-3.5 h-3.5" /> Pola Spektrogram
+                                <div className="flex justify-between items-center">
+                                  <span className="text-sm text-slate-500 font-medium">Prediksi Akhir</span>
+                                  <span className={`px-3 py-1 rounded-full text-xs font-bold ${dualData.cnn.diagnosis === "Suspek TBC" ? "bg-rose-100 text-rose-700" : "bg-emerald-100 text-emerald-700"}`}>
+                                    {dualData.cnn.diagnosis}
                                   </span>
-                                  <div className="h-24 w-full rounded-md border bg-black/5 flex items-center justify-center overflow-hidden">
-                                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                                    <img 
-                                      src={item.gradcam_image} 
-                                      alt="Spektrogram" 
-                                      className="h-full w-auto object-cover"
-                                    />
-                                  </div>
                                 </div>
-                              )}
-                            </>
-                          ) : (
-                            <div className="bg-muted/40 p-4 rounded-lg text-center border border-dashed">
-                              <p className="text-xs text-muted-foreground">Pasien tidak melakukan tes suara pada sesi ini.</p>
+                              </div>
+                              
+                              {/* Metrik Global */}
+                              <div className="grid grid-cols-3 gap-2 mt-auto mb-4">
+                                <div className="bg-blue-100/50 rounded-lg p-2 text-center border border-blue-100">
+                                  <p className="text-[9px] text-blue-600 font-bold uppercase tracking-wider mb-0.5">Global RMSE</p>
+                                  <p className="text-sm font-mono font-bold text-blue-900">{dualData.cnn.metrics?.rmse ?? dualData.metrics?.rmse ?? "-"}</p>
+                                </div>
+                                <div className="bg-blue-100/50 rounded-lg p-2 text-center border border-blue-100">
+                                  <p className="text-[9px] text-blue-600 font-bold uppercase tracking-wider mb-0.5">Global MAE</p>
+                                  <p className="text-sm font-mono font-bold text-blue-900">{dualData.cnn.metrics?.mae ?? dualData.metrics?.mae ?? "-"}</p>
+                                </div>
+                                <div className="bg-blue-100/50 rounded-lg p-2 text-center border border-blue-100">
+                                  <p className="text-[9px] text-blue-600 font-bold uppercase tracking-wider mb-0.5">Global MSE</p>
+                                  <p className="text-sm font-mono font-bold text-blue-900">{dualData.cnn.metrics?.mse ?? dualData.metrics?.made ?? "-"}</p>
+                                </div>
+                              </div>
+
+                              {/* Simulasi Rumus Eksplisit (CNN) */}
+                              <div className="bg-white p-3 rounded-lg border border-slate-200 shadow-inner">
+                                <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-2 border-b border-slate-100 pb-1 flex items-center gap-1">
+                                  <Calculator className="w-3 h-3" /> Bedah Rumus Error (Instance)
+                                </p>
+                                <div className="font-mono text-[11px] leading-relaxed text-slate-700 space-y-3">
+                                  
+                                  {/* Definisi Variabel */}
+                                  <div className="grid grid-cols-2 gap-2 text-slate-500">
+                                    <div>Asli (<span className="italic">y</span>) = <span className="font-bold text-slate-800">{groundTruth}</span></div>
+                                    <div>Tebakan (<span className="italic">ŷ</span>) = <span className="font-bold text-slate-800">{cnnPred}</span></div>
+                                  </div>
+                                  
+                                  <div className="border-t border-dashed border-slate-200"></div>
+                                  
+                                  {/* Rumus Absolute Error */}
+                                  <div className="bg-blue-50/50 p-2 rounded">
+                                    <span className="font-bold text-blue-700 block mb-1">Abs Error (Komponen MAE)</span>
+                                    = | <span className="italic">y</span> - <span className="italic">ŷ</span> | <br/>
+                                    = | {groundTruth} - {cnnPred} | <br/>
+                                    = <span className="font-bold text-blue-700 text-sm">{cnnAbs}</span>
+                                  </div>
+                                  
+                                  {/* Rumus Squared Error */}
+                                  <div className="bg-rose-50/50 p-2 rounded">
+                                    <span className="font-bold text-rose-700 block mb-1">Sq Error (Komponen MSE)</span>
+                                    = ( <span className="italic">y</span> - <span className="italic">ŷ</span> )² <br/>
+                                    = ( {groundTruth} - {cnnPred} )² <br/>
+                                    = <span className="font-bold text-rose-700 text-sm">{cnnSq}</span>
+                                  </div>
+                                  
+                                </div>
+                              </div>
+
                             </div>
-                          )}
+
+                            {/* ===================== CARD DENSENET ===================== */}
+                            <div className="relative border border-purple-200 bg-gradient-to-b from-purple-50/50 to-white rounded-2xl p-5 flex flex-col shadow-sm">
+                              <div className="flex items-center gap-2 mb-4">
+                                <div className="w-2 h-2 rounded-full bg-purple-600"></div>
+                                <p className="text-sm font-extrabold text-purple-900 uppercase tracking-wider">DenseNet-121</p>
+                              </div>
+                              
+                              <div className="bg-slate-900 p-2 rounded-xl mb-5 shadow-inner">
+                                {/* eslint-disable-next-line @next/next/no-img-element */}
+                                <img src={dualData.densenet.spectrogram_image} alt="DenseNet Spectrogram" className="w-full aspect-square object-contain rounded-lg border border-slate-700" />
+                              </div>
+
+                              <div className="space-y-3 mb-6">
+                                <div className="flex justify-between items-center border-b border-slate-100 pb-2">
+                                  <span className="text-sm text-slate-500 font-medium">Probabilitas Tebakan</span>
+                                  <span className="font-mono text-base font-bold text-slate-800">{densePred}%</span>
+                                </div>
+                                <div className="flex justify-between items-center">
+                                  <span className="text-sm text-slate-500 font-medium">Prediksi Akhir</span>
+                                  <span className={`px-3 py-1 rounded-full text-xs font-bold ${dualData.densenet.diagnosis === "Suspek TBC" ? "bg-rose-100 text-rose-700" : "bg-emerald-100 text-emerald-700"}`}>
+                                    {dualData.densenet.diagnosis}
+                                  </span>
+                                </div>
+                              </div>
+                              
+                              {/* Metrik Global */}
+                              <div className="grid grid-cols-3 gap-2 mt-auto mb-4">
+                                <div className="bg-purple-100/50 rounded-lg p-2 text-center border border-purple-100">
+                                  <p className="text-[9px] text-purple-600 font-bold uppercase tracking-wider mb-0.5">Global RMSE</p>
+                                  <p className="text-sm font-mono font-bold text-purple-900">{dualData.densenet.metrics?.rmse ?? dualData.metrics?.rmse ?? "-"}</p>
+                                </div>
+                                <div className="bg-purple-100/50 rounded-lg p-2 text-center border border-purple-100">
+                                  <p className="text-[9px] text-purple-600 font-bold uppercase tracking-wider mb-0.5">Global MAE</p>
+                                  <p className="text-sm font-mono font-bold text-purple-900">{dualData.densenet.metrics?.mae ?? dualData.metrics?.mae ?? "-"}</p>
+                                </div>
+                                <div className="bg-purple-100/50 rounded-lg p-2 text-center border border-purple-100">
+                                  <p className="text-[9px] text-purple-600 font-bold uppercase tracking-wider mb-0.5">Global MSE</p>
+                                  <p className="text-sm font-mono font-bold text-purple-900">{dualData.densenet.metrics?.mse ?? dualData.metrics?.made ?? "-"}</p>
+                                </div>
+                              </div>
+
+                              {/* Simulasi Rumus Eksplisit (DenseNet) */}
+                              <div className="bg-white p-3 rounded-lg border border-slate-200 shadow-inner">
+                                <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-2 border-b border-slate-100 pb-1 flex items-center gap-1">
+                                  <Calculator className="w-3 h-3" /> Bedah Rumus Error (Instance)
+                                </p>
+                                <div className="font-mono text-[11px] leading-relaxed text-slate-700 space-y-3">
+                                  
+                                  {/* Definisi Variabel */}
+                                  <div className="grid grid-cols-2 gap-2 text-slate-500">
+                                    <div>Asli (<span className="italic">y</span>) = <span className="font-bold text-slate-800">{groundTruth}</span></div>
+                                    <div>Tebakan (<span className="italic">ŷ</span>) = <span className="font-bold text-slate-800">{densePred}</span></div>
+                                  </div>
+                                  
+                                  <div className="border-t border-dashed border-slate-200"></div>
+                                  
+                                  {/* Rumus Absolute Error */}
+                                  <div className="bg-purple-50/50 p-2 rounded">
+                                    <span className="font-bold text-purple-700 block mb-1">Abs Error (Komponen MAE)</span>
+                                    = | <span className="italic">y</span> - <span className="italic">ŷ</span> | <br/>
+                                    = | {groundTruth} - {densePred} | <br/>
+                                    = <span className="font-bold text-purple-700 text-sm">{denseAbs}</span>
+                                  </div>
+                                  
+                                  {/* Rumus Squared Error */}
+                                  <div className="bg-rose-50/50 p-2 rounded">
+                                    <span className="font-bold text-rose-700 block mb-1">Sq Error (Komponen MSE)</span>
+                                    = ( <span className="italic">y</span> - <span className="italic">ŷ</span> )² <br/>
+                                    = ( {groundTruth} - {densePred} )² <br/>
+                                    = <span className="font-bold text-rose-700 text-sm">{denseSq}</span>
+                                  </div>
+                                  
+                                </div>
+                              </div>
+
+                            </div>
+
+                          </div>
                         </div>
-                      </CardContent>
-                    </Card>
-                  )
-                })}
-              </div>
+                      ) : (
+                        item.skor_suara_ai && (
+                          <div className="mt-4 pt-4 border-t border-slate-100">
+                            <div className="flex justify-between items-center mb-4">
+                              <span className="text-sm font-bold text-slate-700 flex items-center gap-2">
+                                <Stethoscope className="w-5 h-5 text-indigo-500" /> Prediksi Suara Tunggal
+                              </span>
+                              <Badge className={`px-4 py-1.5 ${item.skor_suara_ai > 50 ? 'bg-rose-500 hover:bg-rose-600' : 'bg-emerald-500 hover:bg-emerald-600'}`}>
+                                {item.skor_suara_ai > 50 ? 'Suspek TBC' : 'Normal'}
+                              </Badge>
+                            </div>
+                            <div className="bg-indigo-50/50 p-4 rounded-xl flex items-center justify-between border border-indigo-100">
+                              <span className="text-sm font-medium text-indigo-900">Tingkat Probabilitas AI</span>
+                              <span className="font-mono text-lg font-black text-indigo-700">{item.skor_suara_ai.toFixed(2)}%</span>
+                            </div>
+                          </div>
+                        )
+                      )}
+                    </CardContent>
+                  </Card>
+                )
+              })
             )}
           </div>
         </div>

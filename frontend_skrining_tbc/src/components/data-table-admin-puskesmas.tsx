@@ -99,13 +99,6 @@ const dateFormatter = new Intl.DateTimeFormat("id-ID", {
   year: "numeric",
 })
 
-// Helper to parse age from string like "25 tahun"
-function getAgeFromString(ageString?: string): number | null {
-  if (!ageString) return null
-  const ageMatch = ageString.match(/(\d+)/)
-  return ageMatch ? parseInt(ageMatch[0], 10) : null
-}
-
 // Pastikan skema ini cocok dengan data yang dikirim dari backend baru Anda
 export const schema = z.object({
   id: z.number(),
@@ -197,11 +190,11 @@ const columns: ColumnDef<z.infer<typeof schema>>[] = [
   },
   {
     accessorKey: "nama",
-    header: "Nama Pasien",
+    header: () => <div className="text-[12px] font-medium uppercase tracking-wider text-muted-foreground font-mono">Nama Pasien</div>,
     cell: ({ row }) => (
       <div className="flex flex-col">
-        <span className="font-medium text-foreground">{row.original.nama}</span>
-        <span className="text-xs text-muted-foreground">
+        <span className="text-[14px] font-medium text-foreground">{row.original.nama}</span>
+        <span className="text-[12px] text-muted-foreground">
           NIK {row.original.nik}
         </span>
       </div>
@@ -210,23 +203,23 @@ const columns: ColumnDef<z.infer<typeof schema>>[] = [
   },
   {
     accessorKey: "hasil_screening",
-    header: "Hasil Screening",
+    header: () => <div className="text-[12px] font-medium uppercase tracking-wider text-muted-foreground font-mono">Hasil Skrining</div>,
     cell: ({ row }) => <ResultBadge result={row.original.hasil_screening} />,
   },
   {
     accessorKey: "tanggal_screening",
-    header: "Tanggal Screening",
+    header: () => <div className="text-[12px] font-medium uppercase tracking-wider text-muted-foreground font-mono">Tanggal</div>,
     cell: ({ row }) => (
-      <span className="text-sm text-muted-foreground">
+      <span className="text-[14px] text-muted-foreground">
         {dateFormatter.format(new Date(row.original.tanggal_screening))}
       </span>
     ),
   },
   {
     accessorKey: "total_screening",
-    header: () => <div className="text-right">Total Screening</div>,
+    header: () => <div className="text-right text-[12px] font-medium uppercase tracking-wider text-muted-foreground font-mono">Total Skrining</div>,
     cell: ({ row }) => (
-      <div className="text-right font-semibold">
+      <div className="text-right text-[14px] font-medium text-foreground">
         {row.original.total_screening}x
       </div>
     ),
@@ -294,7 +287,7 @@ export function DataTable({
 }: {
   data?: z.infer<typeof schema>[]
 }) {
-  const [activeTab, setActiveTab] = React.useState("suspect-dewasa")
+  const [activeTab, setActiveTab] = React.useState("all")
   
   // PERBAIKAN: State untuk menyimpan SEMUA data dari API
   const [allData, setAllData] = React.useState<z.infer<typeof schema>[]>(() => initialData ?? [])
@@ -337,21 +330,15 @@ export function DataTable({
   // PERBAIKAN: Memo untuk memfilter data berdasarkan state 'allData'
   const filteredData = React.useMemo(() => {
     return allData.filter((item) => {
-      const age = getAgeFromString(item.usia)
-      const isAdult = age === null || age >= 15
-      const isChild = age !== null && age < 15
       const screeningValue = item.hasil_screening || "" 
-      const isPositive = screeningValue.toLowerCase() === "positif"
+      const isPositive = screeningValue.toLowerCase() === "positif" || screeningValue.toLowerCase().includes("terduga")
 
       switch (activeTab) {
-        case "suspect-dewasa":
-          return isPositive && isAdult
-        case "non-suspect-dewasa":
-          return !isPositive && isAdult
-        case "suspect-anak":
-          return isPositive && isChild
-        case "non-suspect-anak":
-          return !isPositive && isChild
+        case "suspect":
+          return isPositive
+        case "non-suspect":
+          return !isPositive
+        case "all":
         default:
           return true
       }
@@ -416,51 +403,42 @@ export function DataTable({
   }
 
   return (
-    <div className="flex w-full flex-col justify-start gap-6">
+    <div className="flex w-full flex-col justify-start gap-6" style={{ fontFamily: "Geist, Inter, system-ui, sans-serif" }}>
       {loading ? (
         <div className="p-4 text-sm text-muted-foreground">Memuat data skrining...</div>
       ) : null}
-      <div className="flex items-center justify-between px-4 lg:px-6">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between px-4 lg:px-6">
         <Label htmlFor="view-selector" className="sr-only">
           View
         </Label>
         <Select value={activeTab} onValueChange={setActiveTab}>
           <SelectTrigger
-            className="flex w-fit @4xl/main:hidden"
-            size="sm"
+            className="flex w-full sm:hidden rounded-full h-10 px-4 text-[13px] border-border bg-background"
             id="view-selector"
           >
-            <SelectValue placeholder="Select a view" />
+            <SelectValue placeholder="Semua Pasien" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="suspect-dewasa">Suspect TB Dewasa</SelectItem>
-            <SelectItem value="non-suspect-dewasa">
-              Non Suspect TB Dewasa
-            </SelectItem>
-            <SelectItem value="suspect-anak">Suspect TB Anak</SelectItem>
-            <SelectItem value="non-suspect-anak">Non Suspect TB Anak</SelectItem>
+            <SelectItem value="all">Semua Pasien</SelectItem>
+            <SelectItem value="suspect">Suspect TBC</SelectItem>
+            <SelectItem value="non-suspect">Non Suspect TBC</SelectItem>
           </SelectContent>
         </Select>
-        <Tabs value={activeTab} onValueChange={setActiveTab}>
-          <TabsList className="**:data-[slot=badge]:bg-muted-foreground/30 hidden **:data-[slot=badge]:size-5 **:data-[slot=badge]:rounded-full **:data-[slot=badge]:px-1 @4xl/main:flex">
-            <TabsTrigger value="suspect-dewasa">Suspect TB Dewasa</TabsTrigger>
-            <TabsTrigger value="non-suspect-dewasa">
-              Non Suspect TB Dewasa
-            </TabsTrigger>
-            <TabsTrigger value="suspect-anak">Suspect TB Anak</TabsTrigger>
-            <TabsTrigger value="non-suspect-anak">
-              Non Suspect TB Anak
-            </TabsTrigger>
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="hidden sm:flex">
+          <TabsList className="h-10 rounded-full bg-muted/50 p-1">
+            <TabsTrigger value="all" className="rounded-full px-5 text-[13px] data-[state=active]:bg-background data-[state=active]:shadow-sm">Semua Pasien</TabsTrigger>
+            <TabsTrigger value="suspect" className="rounded-full px-5 text-[13px] data-[state=active]:bg-background data-[state=active]:shadow-sm">Suspect TBC</TabsTrigger>
+            <TabsTrigger value="non-suspect" className="rounded-full px-5 text-[13px] data-[state=active]:bg-background data-[state=active]:shadow-sm">Non Suspect TBC</TabsTrigger>
           </TabsList>
         </Tabs>
         <div className="flex items-center gap-2">
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="outline" size="sm">
-                <IconLayoutColumns />
+              <Button variant="outline" size="sm" className="rounded-full h-10 px-4 text-[13px]">
+                <IconLayoutColumns className="w-4 h-4 mr-1.5" />
                 <span className="hidden lg:inline">Customize Columns</span>
                 <span className="lg:hidden">Columns</span>
-                <IconChevronDown />
+                <IconChevronDown className="w-4 h-4 ml-1.5 opacity-50" />
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-56">
@@ -503,7 +481,7 @@ export function DataTable({
             id={sortableId}
           >
             <Table>
-              <TableHeader className="bg-muted sticky top-0 z-10">
+              <TableHeader className="bg-muted/40 sticky top-0 z-10 border-b border-border">
                 {table.getHeaderGroups().map((headerGroup) => (
                   <TableRow key={headerGroup.id}>
                     {headerGroup.headers.map((header) => {
@@ -546,7 +524,7 @@ export function DataTable({
           </DndContext>
         </div>
         <div className="flex items-center justify-between px-4">
-          <div className="text-muted-foreground hidden flex-1 text-sm lg:flex">
+          <div className="text-muted-foreground hidden flex-1 text-[13px] lg:flex">
             {table.getFilteredSelectedRowModel().rows.length} dari{" "}
             {table.getFilteredRowModel().rows.length} baris dipilih.
           </div>
@@ -628,115 +606,85 @@ export function DataTable({
 }
 
 function ResultBadge({ result }: { result: string }) {
-  const isPositive = result.toLowerCase() === "positif"
+  const isPositive = result.toLowerCase() === "positif" || result.toLowerCase().includes("terduga")
   const badgeClass = isPositive
-    ? "bg-red-50 text-red-700 border-red-200"
-    : "bg-emerald-50 text-emerald-700 border-emerald-200"
+    ? "bg-red-500/10 text-red-600 border-red-500/20"
+    : "bg-emerald-500/10 text-emerald-600 border-emerald-500/20 dark:text-emerald-400"
 
   return (
-    <Badge
-      variant="outline"
-      className={`${badgeClass} px-2 py-0.5 text-xs font-semibold`}
+    <span
+      className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-[11px] font-semibold uppercase tracking-wider ${badgeClass}`}
     >
       {result}
-    </Badge>
+    </span>
   )
 }
 
 function TableCellViewer({ item }: { item: z.infer<typeof schema> }) {
   const isMobile = useIsMobile()
-  const isPositif = item.hasil_screening.toLowerCase() === "positif"
+  const isPositif = item.hasil_screening.toLowerCase() === "positif" || item.hasil_screening.toLowerCase().includes("terduga")
 
   return (
     <Drawer direction={isMobile ? "bottom" : "right"}>
       <DrawerTrigger asChild>
-        <Button variant="link" className="text-primary w-fit px-0 text-left">
+        <Button variant="ghost" className="text-foreground hover:bg-muted/50 rounded-full px-3 h-8 text-[13px]">
           Lihat detail
         </Button>
       </DrawerTrigger>
-      {/* Ubah ukuran Drawer agar lebih lebar di desktop untuk menampung detail */}
-      <DrawerContent className="h-[95vh] sm:h-auto sm:max-w-4xl sm:ml-auto rounded-t-[10px] sm:rounded-l-[10px] sm:rounded-r-none">
-        <DrawerHeader className="border-b pb-4">
-          <DrawerTitle>Detail Pasien - {item.nama}</DrawerTitle>
-          <DrawerDescription>
-            NIK {item.nik} • {item.no_hp}
+      <DrawerContent className="h-[95vh] sm:h-full sm:max-w-xl sm:ml-auto rounded-t-[16px] sm:rounded-l-[16px] sm:rounded-r-none border-border" style={{ fontFamily: "Geist, Inter, system-ui, sans-serif" }}>
+        <DrawerHeader className="border-b border-border pb-4 pt-6 px-6 text-left">
+          <DrawerTitle className="text-xl font-semibold tracking-tight">Detail Pasien</DrawerTitle>
+          <DrawerDescription className="mt-1 text-[14px]">
+            <span className="font-medium text-foreground">{item.nama}</span> • NIK {item.nik}
           </DrawerDescription>
         </DrawerHeader>
 
         {/* ScrollArea Wrapper */}
-        <div className="flex-1 overflow-y-auto p-4 sm:p-6">
-          <div className="w-full space-y-6">
+        <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-6">
             
-            {/* Bagian Grid Detail (Copied & Adapted from Hasil Screening Page) */}
-            <section className="grid gap-6 rounded-lg bg-muted/40 p-4 sm:grid-cols-2 sm:p-6 border">
+          <section className="grid gap-6 rounded-[12px] bg-muted/30 border border-border p-5 sm:p-6 shadow-sm">
               
-              {/* Kolom 1: Identitas */}
-              <div className="space-y-2 border-b border-border pb-4 sm:border-b-0 sm:border-r sm:pb-0 sm:pr-6">
-                <p className="text-xs font-semibold uppercase text-muted-foreground">
+              <div className="space-y-3 pb-4 sm:pb-0 sm:border-r border-border sm:pr-6">
+                <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground font-mono">
                   Identitas
                 </p>
-                <div className="space-y-1 text-sm">
-                  <p>
-                    <span className="font-medium">Nama:</span> {item.nama}
+                <div className="space-y-1.5 text-[14px]">
+                  <p className="flex justify-between sm:block sm:space-x-1"><span className="text-muted-foreground sm:font-medium sm:text-foreground">Nama:</span> <span className="font-medium sm:font-normal">{item.nama}</span></p>
+                  <p className="flex justify-between sm:block sm:space-x-1"><span className="text-muted-foreground sm:font-medium sm:text-foreground">NIK:</span> <span>{item.nik}</span></p>
+                  <p className="flex justify-between sm:block sm:space-x-1">
+                    <span className="text-muted-foreground sm:font-medium sm:text-foreground">Tanggal lahir:</span>{" "}
+                    <span>{item.tanggal_lahir || "-"} ({item.usia || "-"})</span>
                   </p>
-                  <p>
-                    <span className="font-medium">NIK:</span> {item.nik}
-                  </p>
-                  <p>
-                    <span className="font-medium">Tanggal lahir:</span>{" "}
-                    {item.tanggal_lahir || "-"} ({item.usia || "-"})
-                  </p>
-                  <p>
-                    <span className="font-medium">Jenis kelamin:</span>{" "}
-                    {item.kelamin || "-"}
-                  </p>
-                  <p>
-                    <span className="font-medium">Alamat:</span> {item.alamat}
-                  </p>
+                  <p className="flex justify-between sm:block sm:space-x-1"><span className="text-muted-foreground sm:font-medium sm:text-foreground">Jenis kelamin:</span> <span>{item.kelamin || "-"}</span></p>
+                  <p className="flex flex-col sm:block sm:space-x-1"><span className="text-muted-foreground sm:font-medium sm:text-foreground">Alamat:</span> <span className="text-balance">{item.alamat}</span></p>
                 </div>
               </div>
 
-              {/* Kolom 2: Kontak & Fisik */}
-              <div className="space-y-2 pt-4 sm:border-l sm:border-border sm:pl-6 sm:pt-0">
-                <p className="text-xs font-semibold uppercase text-muted-foreground">
-                  Kontak dan pekerjaan
+              <div className="space-y-3 pt-4 border-t border-border sm:border-t-0 sm:pl-2 sm:pt-0">
+                <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground font-mono">
+                  Kontak & Pekerjaan
                 </p>
-                <div className="space-y-1 text-sm">
-                  <p>
-                    <span className="font-medium">No. HP:</span> {item.no_hp}
-                  </p>
-                  <p>
-                    <span className="font-medium">Email:</span>{" "}
-                    {item.email || "-"}
-                  </p>
-                  <p>
-                    <span className="font-medium">Pekerjaan:</span>{" "}
-                    {item.pekerjaan || "-"}
-                  </p>
-                  <p>
-                    <span className="font-medium">Berat badan:</span>{" "}
-                    {item.berat_badan || "-"}
-                  </p>
-                  <p>
-                    <span className="font-medium">Tinggi badan:</span>{" "}
-                    {item.tinggi_badan || "-"}
-                  </p>
+                <div className="space-y-1.5 text-[14px]">
+                  <p className="flex justify-between sm:block sm:space-x-1"><span className="text-muted-foreground sm:font-medium sm:text-foreground">No. HP:</span> <span>{item.no_hp}</span></p>
+                  <p className="flex justify-between sm:block sm:space-x-1"><span className="text-muted-foreground sm:font-medium sm:text-foreground">Email:</span> <span>{item.email || "-"}</span></p>
+                  <p className="flex justify-between sm:block sm:space-x-1"><span className="text-muted-foreground sm:font-medium sm:text-foreground">Pekerjaan:</span> <span>{item.pekerjaan || "-"}</span></p>
+                  <p className="flex justify-between sm:block sm:space-x-1"><span className="text-muted-foreground sm:font-medium sm:text-foreground">Berat badan:</span> <span>{item.berat_badan || "-"}</span></p>
+                  <p className="flex justify-between sm:block sm:space-x-1"><span className="text-muted-foreground sm:font-medium sm:text-foreground">Tinggi badan:</span> <span>{item.tinggi_badan || "-"}</span></p>
                 </div>
               </div>
 
-              {/* Baris: Hasil Screening */}
-              <div className="space-y-2 border-t border-border pt-4 sm:col-span-2">
-                <p className="text-xs font-semibold uppercase text-muted-foreground">
-                  Ringkasan hasil screening
+              <div className="space-y-3 pt-5 border-t border-border sm:col-span-2">
+                <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground font-mono">
+                  Ringkasan Hasil Skrining
                 </p>
-                <div className="space-y-2 rounded-md bg-background p-3 text-sm border">
-                  <div className="flex flex-wrap items-baseline gap-2">
-                    <span className="font-medium">Hasil screening:</span>
+                <div className="space-y-4 rounded-md border border-border bg-background p-4 text-[14px] shadow-sm">
+                  <div className="flex flex-wrap items-center gap-3">
+                    <span className="font-medium text-foreground">Status Diagnosis:</span>
                     <ResultBadge result={item.hasil_screening} />
                   </div>
-                  <div className="flex flex-col gap-1">
-                    <span className="font-medium">Rekomendasi Sistem:</span>
-                    <span className="text-sm text-muted-foreground">
+                  <div className="flex flex-col gap-1 mt-1">
+                    <span className="text-[13px] font-medium text-foreground">Rekomendasi Sistem:</span>
+                    <span className="text-[13px] text-muted-foreground leading-relaxed">
                       {isPositif
                         ? "Pasien ini terindikasi memiliki gejala TBC. Disarankan untuk segera membuat rujukan pemeriksaan lebih lanjut."
                         : "Tidak ditemukan indikasi kuat TBC. Disarankan tetap menjaga pola hidup sehat."}
@@ -745,46 +693,42 @@ function TableCellViewer({ item }: { item: z.infer<typeof schema> }) {
                 </div>
               </div>
 
-              {/* Baris: Faktor Risiko & Gejala */}
-              <div className="space-y-2 border-t border-border pt-4 sm:col-span-2">
-                <p className="text-xs font-semibold uppercase text-muted-foreground">
-                  Faktor risiko dan gejala
+              <div className="space-y-3 pt-5 border-t border-border sm:col-span-2">
+                <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground font-mono">
+                  Faktor Risiko & Gejala Dilaporkan
                 </p>
-                <div className="grid gap-x-4 gap-y-2 text-sm sm:grid-cols-2">
+                <div className="grid gap-x-6 gap-y-2.5 text-[13px] sm:grid-cols-2">
                   <DetailItem label="Riwayat kontak TBC" value={item.riwayat_kontak_tbc} />
-                  <DetailItem label="Pernah terdiagnosa TBC" value={item.pernah_terdiagnosa} />
-                  <DetailItem label="Pernah berobat TBC" value={item.pernah_berobat_tbc} />
-                  <DetailItem label="Pengobatan TBC tidak tuntas" value={item.pernah_berobat_tb_tapi_tidak_tuntas} />
+                  <DetailItem label="Pernah terdiagnosa" value={item.pernah_terdiagnosa} />
+                  <DetailItem label="Pernah berobat" value={item.pernah_berobat_tbc} />
+                  <DetailItem label="Pengobatan tdk tuntas" value={item.pernah_berobat_tb_tapi_tidak_tuntas} />
                   <DetailItem label="Malnutrisi" value={item.malnutrisi} />
-                  <DetailItem label="Merokok / Perokok Pasif" value={item.merokok_perokok_pasif} />
+                  <DetailItem label="Perokok" value={item.merokok_perokok_pasif} />
                   <DetailItem label="Riwayat DM" value={item.riwayat_dm_kencing_manis} />
-                  <DetailItem label="Lansia" value={item.lansia} />
-                  <DetailItem label="Ibu Hamil" value={item.ibu_hamil} />
-                  <DetailItem label="Batuk terus menerus" value={item.batuk} />
-                  <DetailItem label="BB turun drastis" value={item.bb_turun_tanpa_sebab_nafsu_makan_turun} />
-                  <DetailItem label="Demam tanpa sebab" value={item.demam_tidak_diketahui_penyebabnya} />
+                  <DetailItem label="Lansia (60+)" value={item.lansia} />
+                  <DetailItem label="Ibu hamil" value={item.ibu_hamil} />
+                  <DetailItem label="Batuk" value={item.batuk} />
+                  <DetailItem label="BB turun tanpa sebab" value={item.bb_turun_tanpa_sebab_nafsu_makan_turun} />
+                  <DetailItem label="Demam" value={item.demam_tidak_diketahui_penyebabnya} />
                   <DetailItem label="Badan lemas" value={item.badan_lemas} />
-                  <DetailItem label="Berkeringat malam hari" value={item.berkeringat_malam_tanpa_kegiatan} />
+                  <DetailItem label="Berkeringat malam" value={item.berkeringat_malam_tanpa_kegiatan} />
                   <DetailItem label="Sesak napas" value={item.sesak_napas_tanpa_nyeri_dada} />
-                  <DetailItem label="Pembesaran kelenjar leher" value={item.ada_pembesaran_getah_bening_dileher} />
+                  <DetailItem label="Pembesaran getah bening" value={item.ada_pembesaran_getah_bening_dileher} />
                 </div>
               </div>
-            </section>
-
-          </div>
+          </section>
         </div>
 
-        <DrawerFooter className="border-t pt-4">
+        <DrawerFooter className="border-t border-border p-4 sm:px-6 sm:py-4 bg-background">
           <div className="flex flex-col sm:flex-row gap-3 w-full justify-end">
             <DrawerClose asChild>
-              <Button variant="outline">Tutup</Button>
+              <Button variant="outline" className="rounded-full px-6 h-10 text-[14px]">Tutup</Button>
             </DrawerClose>
             {isPositif && (
               <Button
                 variant="default"
-                className="bg-blue-600 hover:bg-blue-700"
+                className="rounded-full px-6 h-10 text-[14px] shadow-[0px_1px_1px_#00000005,0px_2px_2px_#0000000a]"
                 onClick={() => {
-                  // Logika tombol rujukan disini
                   console.log("Buat rujukan untuk id:", item.id)
                   alert(`Rujukan dibuat untuk ${item.nama}`)
                 }}
@@ -799,12 +743,12 @@ function TableCellViewer({ item }: { item: z.infer<typeof schema> }) {
   )
 }
 
-// Helper kecil agar kodingan lebih rapi untuk list gejala
-function DetailItem({ label, value }: { label: string; value?: string }) {
+function DetailItem({ label, value }: { label: string; value?: string | null }) {
+  const isWarning = value?.toLowerCase() === "ya" || value?.toLowerCase() === "iya"
   return (
-    <div className="flex justify-between sm:justify-start sm:gap-2">
-      <span className="font-medium text-muted-foreground">{label}:</span>
-      <span className={value?.toLowerCase() === "ya" ? "font-bold text-red-600" : "text-foreground"}>
+    <div className="flex justify-between sm:justify-start sm:gap-2 border-b border-border/50 sm:border-0 pb-1.5 sm:pb-0">
+      <span className="text-muted-foreground">{label}:</span>
+      <span className={`font-medium ${isWarning ? "text-destructive" : "text-foreground"}`}>
         {value || "-"}
       </span>
     </div>

@@ -12,6 +12,7 @@ from PIL import Image
 import tensorflow as tf
 from tensorflow.keras.models import load_model
 import base64
+import math
 
 import matplotlib
 matplotlib.use('Agg')
@@ -140,3 +141,50 @@ class AIAudioService:
                 "keterangan": f"Nilai probabilitas {probabilitas:.2f} {'>' if probabilitas > 0.5 else '<='} threshold 0.50. Kesimpulan: {diagnosis}."
             }
         }
+
+    @classmethod
+    def analyze_dual_model(cls, audio_path):
+        """Menjalankan CNN dan DenseNet secara bersamaan untuk 1 file audio."""
+        try:
+            # 1. Load Audio & Buat Spektrogram
+            y, sr = librosa.load(audio_path, sr=22050)
+            S = librosa.feature.melspectrogram(y=y, sr=sr, n_mels=128, fmax=8000)
+            S_dB = librosa.power_to_db(S, ref=np.max)
+
+            fig = plt.figure(figsize=(3, 3))
+            ax = plt.axes([0., 0., 1., 1.], frameon=False, xticks=[], yticks=[])
+            librosa.display.specshow(S_dB, sr=sr, fmax=8000, cmap='viridis', ax=ax)
+
+            buf = io.BytesIO()
+            plt.savefig(buf, format='png', bbox_inches='tight', pad_inches=0, dpi=100)
+            plt.close(fig)
+            buf.seek(0)
+
+            spectrogram_b64 = f"data:image/png;base64,{base64.b64encode(buf.getvalue()).decode('utf-8')}"
+            img_pil = Image.open(buf).convert('RGB').resize((224, 224)) 
+            input_tensor = np.expand_dims(np.array(img_pil).astype(np.float32) / 255.0, axis=0)
+
+            # 2. Prediksi 2 Model
+            pred_cnn = float(MODELS["cnn"].predict(input_tensor, verbose=0)[0][0])
+            pred_dense = float(MODELS["densenet"].predict(input_tensor, verbose=0)[0][0])
+
+            # 3. Metrik Statis Hasil Training (Ganti dengan angkamu sendiri nanti)
+            METRIK_CNN = {"rmse": 12.45, "mae": 8.30, "mse": 1.55}
+            METRIK_DENSE = {"rmse": 10.12, "mae": 7.05, "mse": 1.02}
+
+            return {
+                "cnn": {
+                    "probabilitas": pred_cnn * 100,
+                    "diagnosis": "Suspek TBC" if pred_cnn > 0.50 else "Normal",
+                    "spectrogram_image": spectrogram_b64,
+                    "metrics": METRIK_CNN
+                },
+                "densenet": {
+                    "probabilitas": pred_dense * 100,
+                    "diagnosis": "Suspek TBC" if pred_dense > 0.50 else "Normal",
+                    "spectrogram_image": spectrogram_b64,
+                    "metrics": METRIK_DENSE
+                }
+            }
+        except Exception as e:
+            raise ValueError(f"Gagal melakukan komparasi model: {str(e)}")

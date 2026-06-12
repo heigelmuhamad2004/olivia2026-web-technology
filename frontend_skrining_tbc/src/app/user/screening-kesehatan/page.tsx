@@ -13,6 +13,7 @@ import { getActiveToken } from "@/app/services/auth.services"
 import { createSkrining } from "@/app/services/skrining.services" // Perbaikan: path impor disesuaikan
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
+import { customToast } from "@/components/ui/alert-1"
 import {
   Form,
   FormControl,
@@ -158,14 +159,14 @@ function ScreeningFormContent() {
 
   async function onSubmit(values: FormValues) {
     if (!pasienId) {
-      alert("ID Pasien tidak ditemukan. Proses tidak dapat dilanjutkan.")
+      customToast.error("ID Pasien tidak ditemukan. Proses tidak dapat dilanjutkan.")
       return
     }
 
     // CEK TOKEN AKTIF SEBELUM MELANJUTKAN
     const token = getActiveToken()
     if (!token) {
-      alert("Sesi Anda telah habis. Silakan login kembali.")
+      customToast.warning("Sesi Anda telah habis. Silakan login kembali.")
       router.push("/auth/login")
       return
     }
@@ -174,7 +175,7 @@ function ScreeningFormContent() {
       // createSkrining seharusnya memakai token aktif di service; tetap panggil.
       const result = await createSkrining(values, pasienId)
       console.log("Skrining berhasil dibuat:", result)
-      alert("Data skrining berhasil disimpan!")
+      customToast.success("Data skrining berhasil disimpan!")
       
       // Tangkap ID skrining baru dari response API
       const idSkriningBaru = result?.data?.id || result?.id || result?.data_response?.id || result?.data?.data_response?.id;
@@ -187,7 +188,7 @@ function ScreeningFormContent() {
       }
     } catch (error) {
       console.error("Terjadi kesalahan saat menyimpan data:", error)
-      alert("Terjadi kesalahan saat menyimpan data. Silakan coba lagi.")
+      customToast.error("Terjadi kesalahan saat menyimpan data. Silakan coba lagi.")
     }
   }
 

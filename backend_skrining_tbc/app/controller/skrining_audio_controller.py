@@ -10,6 +10,8 @@ from app import db, response
 from app.model.skrining import Skrining
 from app.model.rujukan import Rujukan, StatusRujukan
 from app.services.ai_audio_service import AIAudioService
+from app.model.evaluasi import EvaluasiModel
+import shutil
 
 # Tentukan folder penyimpanan permanen di Docker server
 UPLOAD_FOLDER = os.path.join(os.getcwd(), 'uploads', 'audio')
@@ -118,3 +120,56 @@ def process_audio_detect():
         db.session.rollback()
         print("Error process_audio_detect:", e)
         return response.bad_request([], f"Gagal memproses AI Suara: {str(e)}")
+    
+@jwt_required()
+def evaluate_dual_audio():
+    """API 3: Evaluasi Ganda Disimpan Langsung ke Tabel Skrining Pasien"""
+    try:
+        claims = get_jwt()
+        user_id = claims.get("id")
+        
+        req_data = request.json
+        if not req_data or 'audio_base64' not in req_data:
+            return response.bad_request([], "Data audio_base64 tidak ditemukan.")
+            
+        skrining_id = req_data.get('skrining_id')
+        if not skrining_id:
+            return response.bad_request([], "ID Skrining tidak ditemukan.")
+            
+        # Cari data skrining milik pasien ini
+        skrining = Skrining.query.filter_by(id=skrining_id, user_id=user_id).first()
+        if not skrining:
+            return response.bad_request([], "Data skrining tidak valid.")
+
+        audio_b64_string = req_data['audio_base64']
+        header, encoded = audio_b64_string.split(",", 1)
+        audio_data = base64.b64decode(encoded)
+        
+        # Simpan file fisik
+        filename = f"skrining_dual_{skrining.id}_{uuid.uuid4().hex[:8]}.wav"
+        permanent_audio_path = os.path.join(UPLOAD_FOLDER, filename)
+        with open(permanent_audio_path, "wb") as f:
+            f.write(audio_data)
+
+        # Hitung Komparasi
+        hasil_evaluasi = AIAudioService.analyze_dual_model(permanent_audio_path)
+
+        # UPDATE DATABASE SKRINING UTAMA
+        skrining.metode_skrining = "Uji Komparasi (CNN vs DenseNet)"
+        skrining.skor_suara_ai = hasil_evaluasi["cnn"]["probabilitas"] # Gunakan CNN sebagai skor utama
+        skrining.file_suara = f"/uploads/audio/{filename}"
+        skrining.gradcam_image = hasil_evaluasi["cnn"]["spectrogram_image"] 
+        
+        # MAGIC: Selipkan SEMUA data metrik dan densenet ke dalam kolom JSON ini!
+        skrining.detail_matematika = hasil_evaluasi 
+        
+        db.session.commit()
+
+        return response.success(hasil_evaluasi, "Evaluasi komparasi berhasil disimpan ke data pasien.")
+
+    except Exception as e:
+        db.session.rollback()
+        import traceback
+        print("====== ERROR EVALUASI GANDA ======")
+        print(traceback.format_exc())
+        return response.bad_request([], f"Gagal memproses evaluasi komparasi: {str(e)}")

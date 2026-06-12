@@ -7,6 +7,11 @@ from app.controller import wilayah_controller
 from flask import Blueprint
 from app.controller import auth_controller
 from app.controller.auth_controller import auth_bp
+from flask import Blueprint, jsonify
+from flask_jwt_extended import jwt_required
+
+# Import service yang baru kamu buat
+from app.services.metrics_evaluation import MetricsEvaluationService
 # Impor user_controller yang baru
 from app.controller.user_controller import user_bp
 from app.controller import admin_puskesmas_controller
@@ -110,6 +115,10 @@ def route_preview_audio():
 def route_detect_audio():
     return skrining_audio_controller.process_audio_detect()
 
+@app.route('/skrining/audio/evaluate-dual', methods=['POST'])
+def route_evaluate_dual_audio():
+    return skrining_audio_controller.evaluate_dual_audio()
+
 #BENCHMARK ROUTES
 # 1. Rute Uji Konsistensi (1 Audio diulang N kali)
 @app.route('/benchmark/consistency', methods=['POST'])
@@ -120,6 +129,17 @@ def route_benchmark_consistency():
 @app.route('/benchmark/variation', methods=['POST'])
 def route_benchmark_variation():
     return benchmark_controller.run_variation_test()
+
+@app.route('/admin/metrics/global', methods=['GET'])
+@jwt_required() # Jika Next.js mengirim token
+def get_global_metrics_route():
+    # Panggil logika dari file service
+    result = MetricsEvaluationService.calculate_global_metrics()
+    
+    if result["status"] == "success":
+        return jsonify(result), 200
+    else:
+        return jsonify(result), 500
 
 #WILAYAH ROUTES
 @app.route('/provinsi', methods=['GET'])

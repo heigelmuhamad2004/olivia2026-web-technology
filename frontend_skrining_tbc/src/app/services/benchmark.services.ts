@@ -2,6 +2,9 @@ import axios from "axios";
 import { getActiveToken } from "./auth.services";
 import { MathDetailsSigmoid } from "./skrining-suara.services";
 
+// ==========================================
+// INTERFACE UNTUK BENCHMARK (UJI KONSISTENSI & VARIASI)
+// ==========================================
 export interface BenchmarkResultItem {
   iterasi?: number;
   nama_pasien?: string;
@@ -23,6 +26,35 @@ export interface BenchmarkResponse {
   };
 }
 
+// ==========================================
+// INTERFACE BARU UNTUK DASHBOARD METRIK GLOBAL
+// ==========================================
+export interface GlobalMetricsData {
+  total_pasien: number;
+  total_suspek: number;
+  cnn: { rmse: number; mae: number; mse: number };
+  densenet: { rmse: number; mae: number; mse: number };
+}
+
+export interface AnomalyRecord {
+  id: number;
+  nama: string;
+  kunci_asli: string;
+  prediksi_ai: string;
+  model: "CNN" | "DenseNet";
+  error_margin: number;
+}
+
+export interface GlobalMetricsResponse {
+  status: "success" | "error" | "fail";
+  message?: string;
+  metrics?: GlobalMetricsData;
+  anomalies?: AnomalyRecord[];
+}
+
+// ==========================================
+// CLASS SERVICE UTAMA
+// ==========================================
 export class BenchmarkService {
   private static getHeaders() {
     const token = getActiveToken();
@@ -30,6 +62,7 @@ export class BenchmarkService {
     return { Authorization: `Bearer ${token}`, "Content-Type": "application/json" };
   }
 
+  // 1. Uji Konsistensi
   static async runConsistency(audioBase64: string, model: "cnn" | "densenet", iterations: number = 10): Promise<BenchmarkResponse> {
     try {
       const API_URL = process.env.NEXT_PUBLIC_API_URL || "/api_flask";
@@ -41,6 +74,7 @@ export class BenchmarkService {
     }
   }
 
+  // 2. Uji Variasi
   static async runVariation(audioList: { nama: string; audio_base64: string }[], model: "cnn" | "densenet"): Promise<BenchmarkResponse> {
     try {
       const API_URL = process.env.NEXT_PUBLIC_API_URL || "/api_flask";
@@ -49,6 +83,24 @@ export class BenchmarkService {
       return response.data;
     } catch (error: any) {
       return { status: "error", message: error.response?.data?.message || "Gagal menjalankan Uji Variasi." };
+    }
+  }
+
+  // 3. AMBIL DATA METRIK GLOBAL UNTUK DASHBOARD SUPER ADMIN
+  static async getGlobalMetrics(): Promise<GlobalMetricsResponse> {
+    try {
+      const API_URL = process.env.NEXT_PUBLIC_API_URL || "/api_flask";
+      // Pastikan path "/admin/metrics/global" ini sama persis dengan yang kamu tulis di routes Flask-mu
+      const response = await axios.get(`${API_URL}/admin/metrics/global`, { 
+        headers: this.getHeaders() 
+      });
+      return response.data;
+    } catch (error: any) {
+      console.error("Error Fetch Global Metrics:", error);
+      return { 
+        status: "error", 
+        message: error.response?.data?.message || "Gagal mengambil data analitik global dari server." 
+      };
     }
   }
 }

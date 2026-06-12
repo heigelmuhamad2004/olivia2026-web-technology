@@ -64,15 +64,19 @@ const testimonials = [
 
 
 const Testimonial04 = () => (
-  <div className="min-h-screen flex justify-center items-center py-12">
+  <div className="w-full flex justify-center items-center">
     <div className="h-full w-full">
-      <h2 className="text-5xl font-semibold text-center tracking-[-0.03em] px-6 text-pretty">
-        Testimoni Pengguna
-      </h2>
-      <p className="mt-3 text-center text-muted-foreground text-xl">
-        Pengalaman beberapa orang yang pernah melakukan screening di web TBCeck
+      <p className="font-mono text-sm uppercase tracking-widest text-center text-muted-foreground mb-4">
+        Dampak Nyata
       </p>
-      <div className="mt-14 relative">
+      <h2 className="text-3xl md:text-[2.5rem] font-semibold tracking-[-0.03em] text-center text-ink px-6 leading-tight">
+        Pengalaman dari pengguna kami.
+      </h2>
+      <p className="mt-4 text-center text-body text-lg max-w-2xl mx-auto">
+        Ribuan masyarakat telah terbantu untuk mengidentifikasi potensi TBC sejak dini melalui platform kami.
+      </p>
+      
+      <div className="mt-16 relative">
         <div className="z-10 absolute left-0 inset-y-0 w-[15%] bg-linear-to-r from-background to-transparent" />
         <div className="z-10 absolute right-0 inset-y-0 w-[15%] bg-linear-to-l from-background to-transparent" />
         <Marquee pauseOnHover className="[--duration:20s]">
@@ -90,7 +94,7 @@ const TestimonialList = () =>
   testimonials.map((testimonial) => (
     <div
       key={testimonial.id}
-      className="min-w-96 max-w-sm bg-accent rounded-xl p-6"
+      className="w-[85vw] sm:w-96 sm:min-w-96 max-w-sm bg-card border border-border rounded-lg p-6 shadow-[0px_1px_1px_#00000005,0px_2px_2px_#0000000a] mx-2 shrink-0"
     >
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-4">
@@ -100,8 +104,8 @@ const TestimonialList = () =>
             </AvatarFallback>
           </Avatar>
           <div>
-            <p className="text-lg font-semibold">{testimonial.name}</p>
-            <p className="text-sm text-gray-500">{testimonial.designation}</p>
+            <p className="text-md font-semibold text-ink">{testimonial.name}</p>
+            <p className="text-sm text-body">{testimonial.designation}</p>
           </div>
         </div>
         <Button variant="ghost" size="icon" asChild>
@@ -110,7 +114,7 @@ const TestimonialList = () =>
           </Link>
         </Button>
       </div>
-      <p className="mt-5 text-[17px]">{testimonial.testimonial}</p>
+      <p className="mt-6 text-[15px] text-body leading-relaxed font-normal">{testimonial.testimonial}</p>
     </div>
   ));
 

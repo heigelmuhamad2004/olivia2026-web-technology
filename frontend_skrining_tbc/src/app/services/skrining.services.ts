@@ -79,6 +79,7 @@ export interface SkriningRiwayat {
   skor_suara_ai?: number | null
   metode_skrining?: string
   gradcam_image?: string | null
+  detail_matematika?: any;
 }
 
 export const getRiwayatSkriningByPasien = async (

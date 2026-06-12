@@ -49,25 +49,28 @@ const features = [
 
 const Features01Page = () => {
   return (
-    <div className="min-h-screen flex items-center justify-center py-12">
-      <div>
-        <h2 className="text-4xl sm:text-5xl font-semibold tracking-tight text-center">
-          Skrining TBC Cepat & Mudah
-        </h2>
-        <p className="mt-4 text-center text-lg text-foreground/70 max-w-2xl mx-auto">
-          Teknologi cerdas untuk membantu Anda mendeteksi gejala TBC sejak dini.
-        </p>
-        <div className="mt-10 sm:mt-16 grid sm:grid-cols-2 lg:grid-cols-3 gap-6 max-w-(--breakpoint-lg) mx-auto px-6">
+    <div className="w-full">
+      <div className="mx-auto max-w-5xl space-y-8 md:space-y-16">
+        <div className="relative z-10 mx-auto max-w-2xl space-y-4 text-center md:space-y-6">
+          <p className="font-mono text-sm uppercase tracking-widest text-muted-foreground">
+            Fitur Platform
+          </p>
+          <h2 className="text-balance text-3xl font-medium md:text-4xl lg:text-5xl text-foreground">
+            Teknologi cerdas untuk deteksi dini.
+          </h2>
+          <p className="text-muted-foreground text-base md:text-lg">
+            Infrastruktur digital kami dirancang untuk mempermudah akses kesehatan dengan analisis yang cepat, privat, dan terhubung langsung ke fasilitas medis.
+          </p>
+        </div>
+
+        <div className="relative mx-auto grid max-w-2xl lg:max-w-5xl divide-x divide-y divide-border border border-border *:p-8 md:*:p-12 sm:grid-cols-2 lg:grid-cols-3 bg-card">
           {features.map((feature) => (
-            <div
-              key={feature.title}
-              className="flex flex-col border rounded-xl py-6 px-5 hover:shadow-lg transition"
-            >
-              <div className="mb-4 h-10 w-10 flex items-center justify-center bg-muted rounded-full">
-                <feature.icon className="size-5" />
+            <div key={feature.title} className="space-y-3">
+              <div className="flex items-center gap-2">
+                <feature.icon className="size-5 text-primary" />
+                <h3 className="text-base font-medium text-foreground">{feature.title}</h3>
               </div>
-              <span className="text-lg font-semibold">{feature.title}</span>
-              <p className="mt-1 text-foreground/80 text-[15px]">
+              <p className="text-sm text-muted-foreground leading-relaxed">
                 {feature.description}
               </p>
             </div>

@@ -1,3 +1,4 @@
+import requests
 from app import db
 from flask import Blueprint, request, jsonify
 from flask_jwt_extended import jwt_required, get_jwt_identity, get_jwt
@@ -39,6 +40,21 @@ def register():
 @auth_bp.route("/login", methods=["POST"])
 def login():
     data = request.get_json()
+    
+    # 1. Validasi CAPTCHA
+    recaptcha_token = data.get("recaptcha_token")
+    if not recaptcha_token:
+        return jsonify({"message": "Verifikasi CAPTCHA gagal (Token tidak ditemukan)."}), 400
+        
+    secret_key = "6Ldu3B8tAAAAAJ0tOPRd2yC6NVMGh2jhOtBJqPZA"
+    verify_response = requests.post(
+        "https://www.google.com/recaptcha/api/siteverify",
+        data={"secret": secret_key, "response": recaptcha_token}
+    ).json()
+    
+    if not verify_response.get("success"):
+        return jsonify({"message": "CAPTCHA tidak valid, silakan coba lagi."}), 400
+
     login_result = login_user(
         email=data["email"],
         password=data["password"]
@@ -88,6 +104,3 @@ def logout():
     except Exception as e:
         print("Error logout:", e)
         return jsonify({"message": "Gagal logout"}), 500
-
-
-

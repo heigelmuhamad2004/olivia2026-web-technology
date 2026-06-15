@@ -3,7 +3,7 @@ import api from "./api"
 const isBrowser = () => typeof window !== "undefined"
 
 interface RegisterData { nama: string; email: string; password: string }
-interface LoginData { email: string; password: string }
+interface LoginData { email: string; password: string; recaptcha_token?: string }
 
 // REGISTER
 export const registerUser = async (data: RegisterData) => {

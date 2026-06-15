@@ -17,6 +17,8 @@ import Link from "next/link"
 import { useRouter } from "next/navigation" // Gunakan useRouter
 import { useForm } from "react-hook-form"
 import { z } from "zod"
+import ReCAPTCHA from "react-google-recaptcha"
+import { useState } from "react"
 
 const formSchema = z.object({
   email: z.string().email("Email tidak valid"),
@@ -25,6 +27,7 @@ const formSchema = z.object({
 
 const SignUp02Page = () => {
   const router = useRouter()
+  const [recaptchaToken, setRecaptchaToken] = useState<string | null>(null)
   const form = useForm<z.infer<typeof formSchema>>({
     defaultValues: {
       email: "",
@@ -35,8 +38,13 @@ const SignUp02Page = () => {
 
   // Perbarui fungsi onSubmit
   const onSubmit = async (data: z.infer<typeof formSchema>) => {
+    if (!recaptchaToken) {
+      alert("Silakan centang CAPTCHA terlebih dahulu!")
+      return
+    }
+
     try {
-      const result = await loginUser(data)
+      const result = await loginUser({ ...data, recaptcha_token: recaptchaToken })
       console.log("Login berhasil:", result)
 
       // PERBAIKAN: Logika redirect berdasarkan role
@@ -120,6 +128,14 @@ const SignUp02Page = () => {
                 </FormItem>
               )}
             />
+            
+            <div className="flex justify-center mt-4">
+              <ReCAPTCHA
+                sitekey="6Ldu3B8tAAAAANnp4a8m2oVHJ-XzfstnOMyzOWzY"
+                onChange={(token) => setRecaptchaToken(token)}
+              />
+            </div>
+
             <Button type="submit" className="mt-4 w-full">
               Masuk
             </Button>

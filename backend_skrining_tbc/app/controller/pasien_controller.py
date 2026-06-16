@@ -2,8 +2,8 @@ from flask import request
 from flask_jwt_extended import jwt_required, get_jwt
 from app import response, db, app
 from app.model.pasien import Pasien, JenisKelamin
+from app.model.skrining import Skrining
 from datetime import datetime, date
-
 
 @jwt_required()
 def create_pasien():
@@ -12,7 +12,19 @@ def create_pasien():
         user_id = current_user["id"]
 
         data = request.get_json() or {}
-        # normalisasi jenis_kelamin: terima "L"/"P" atau "Laki-Laki"/"Perempuan"
+        
+        # 1. CEK DUPLIKASI NIK SECARA MANUAL (Metode Python Memory)
+        nik_input = data.get("nik")
+        if not nik_input:
+            return response.bad_request([], "NIK wajib diisi")
+            
+        # AMBIL SEMUA DATA, LALU COCOKKAN DI PYTHON
+        semua_pasien = Pasien.query.all()
+        for p in semua_pasien:
+            if p.nik == nik_input: # Saat dipanggil p.nik, otomatis didekripsi
+                return response.bad_request([], "NIK tersebut sudah terdaftar di sistem")
+
+        # 2. NORMALISASI JENIS KELAMIN
         jenis_raw = data.get("jenis_kelamin")
         if jenis_raw in ("L", "P"):
             jenis_map = {"L": "Laki-Laki", "P": "Perempuan"}
@@ -25,14 +37,13 @@ def create_pasien():
         except Exception as ve:
             return response.bad_request([], "Jenis kelamin tidak valid. Pilih 'Laki-Laki' atau 'Perempuan'")
 
-        # parse tanggal_lahir jika dikirim sebagai string "YYYY-MM-DD"
+        # 3. PARSE TANGGAL LAHIR
         tgl = data.get("tanggal_lahir")
         tanggal_obj = None
         if isinstance(tgl, str):
             try:
                 tanggal_obj = datetime.strptime(tgl, "%Y-%m-%d").date()
             except ValueError:
-                # coba parse ISO full jika perlu
                 try:
                     tanggal_obj = datetime.fromisoformat(tgl).date()
                 except Exception:
@@ -42,11 +53,12 @@ def create_pasien():
         else:
             return response.bad_request([], "tanggal_lahir wajib diisi")
 
+        # 4. SIMPAN PASIEN BARU
         pasien = Pasien(
             user_id=user_id,
             kecamatan_id=data.get("kecamatan_id"),
             nama=data.get("nama"),
-            nik=data.get("nik"),
+            nik=nik_input, # <-- NIK Masuk, otomatis dienkripsi oleh model
             alamat=data.get("alamat"),
             tanggal_lahir=tanggal_obj,
             usia=data.get("usia"),
@@ -61,6 +73,7 @@ def create_pasien():
         data_pasien = single_object(pasien)
         return response.success(data_pasien, "Berhasil menambahkan data pasien")
     except Exception as e:
+        db.session.rollback()
         app.logger.exception("Gagal menambahkan pasien")
         return response.bad_request([], "Gagal menambahkan data pasien")
 
@@ -69,7 +82,7 @@ def index():
     try:
         current_user = get_jwt()
         role = current_user["role"]
-        kecamatan_id = current_user["kecamatan_id"]
+        kecamatan_id = current_user.get("kecamatan_id")
         user_id = current_user["id"]
 
         if role == "super_admin":
@@ -86,11 +99,24 @@ def index():
         print(e)
         return response.bad_request([], "Gagal mengambil data pasien")
     
+@jwt_required() # 🛡️ Tambahkan perlindungan JWT di sini
 def get_by_id(id):  
     try:
+        current_user = get_jwt()
+        role = current_user.get("role")
+        user_id = current_user.get("id")
+        kecamatan_id = current_user.get("kecamatan_id")
+
         pasien = Pasien.query.filter_by(id=id).first()
         if not pasien:
             return response.bad_request([], "Pasien tidak ditemukan")
+
+        # 🛡️ BENTENG IDOR: Validasi Hak Akses
+        if role == "user" and pasien.user_id != user_id:
+            return response.bad_request([], "Akses Ditolak: Anda tidak memiliki hak akses ke data pasien ini")
+        elif role == "admin_puskesmas" and pasien.kecamatan_id != kecamatan_id:
+            return response.bad_request([], "Akses Ditolak: Pasien ini berada di luar wilayah Puskesmas Anda")
+
         data = single_object(pasien)
         return response.success(data, "Berhasil mengambil data pasien")
 
@@ -101,16 +127,33 @@ def get_by_id(id):
 @jwt_required()
 def edit_pasien(id):
     try:
+        current_user = get_jwt()
+        role = current_user.get("role")
+        user_id = current_user.get("id")
+        kecamatan_id = current_user.get("kecamatan_id")
+
         data = request.get_json()
         if not data:
-            # Perbaikan: Menggunakan bad_request yang benar
             return response.bad_request([], "Data tidak boleh kosong")
 
         pasien = Pasien.query.get_or_404(id)
 
-        # Validasi dan update data
+        # 🛡️ BENTENG IDOR: Cegah user edit data orang lain
+        if role == "user" and pasien.user_id != user_id:
+            return response.bad_request([], "Akses Ditolak: Anda tidak dapat mengedit data pasien ini")
+        elif role == "admin_puskesmas" and pasien.kecamatan_id != kecamatan_id:
+            return response.bad_request([], "Akses Ditolak: Tidak dapat mengedit pasien dari Puskesmas lain")
+
+        # CEK DUPLIKASI NIK SAAT EDIT
+        new_nik = data.get('nik')
+        if new_nik and new_nik != pasien.nik: # NIK pasien.nik akan didekripsi otomatis untuk perbandingan
+            semua_pasien = Pasien.query.all()
+            for p in semua_pasien:
+                if p.nik == new_nik and p.id != pasien.id:
+                    return response.bad_request([], "NIK tersebut sudah digunakan oleh pasien lain")
+            pasien.nik = new_nik
+
         pasien.nama = data.get('nama', pasien.nama)
-        pasien.nik = data.get('nik', pasien.nik)
         pasien.alamat = data.get('alamat', pasien.alamat)
         pasien.tanggal_lahir = data.get('tanggal_lahir', pasien.tanggal_lahir)
         pasien.usia = data.get('usia', pasien.usia)
@@ -126,17 +169,24 @@ def edit_pasien(id):
 
         db.session.commit()
         
-        # Perbaikan: Menggunakan fungsi single_object, bukan to_dict
         return response.success(single_object(pasien), "Data pasien berhasil diperbarui")
 
     except Exception as e:
+        db.session.rollback()
         app.logger.error(f"Error saat mengedit pasien: {e}")
-        # Perbaikan: Menggunakan bad_request, bukan serverError
         return response.bad_request([], "Terjadi kesalahan internal saat mengedit pasien")
 
-    
+@jwt_required() # 🛡️ Tambahkan perlindungan JWT di sini
 def get_pasien_by_kecamatan(kecamatan_id):
     try:
+        current_user = get_jwt()
+        role = current_user.get("role")
+        user_kecamatan_id = current_user.get("kecamatan_id")
+
+        # 🛡️ BENTENG IDOR
+        if role == "admin_puskesmas" and int(kecamatan_id) != user_kecamatan_id:
+            return response.bad_request([], "Akses Ditolak: Anda tidak diizinkan melihat data kecamatan lain")
+
         pasien = Pasien.query.filter_by(kecamatan_id=kecamatan_id).all()
         data = format_array(pasien)
         return response.success(data, "Berhasil mengambil data pasien berdasarkan kecamatan")
@@ -147,32 +197,48 @@ def get_pasien_by_kecamatan(kecamatan_id):
 @jwt_required()
 def delete_pasien(id):
     try:
+        current_user = get_jwt()
+        role = current_user.get("role")
+        user_id = current_user.get("id")
+        kecamatan_id = current_user.get("kecamatan_id")
+
         pasien = Pasien.query.filter_by(id=id).first()
         if pasien is None:
             return response.bad_request([], "Pasien tidak ditemukan")
+            
+        # 🛡️ BENTENG IDOR: Cek hak akses penghapusan
+        if role == "user" and pasien.user_id != user_id:
+            return response.bad_request([], "Akses Ditolak: Anda tidak dapat menghapus pasien ini")
+        elif role == "admin_puskesmas" and pasien.kecamatan_id != kecamatan_id:
+            return response.bad_request([], "Akses Ditolak: Tidak dapat menghapus pasien dari Puskesmas lain")
+
+        # KEMBALIKAN ATURAN REKAM MEDIS: Cek apakah ada data skrining
+        skrining_terkait = Skrining.query.filter_by(pasien_id=id).first()
+        if skrining_terkait:
+            # Tolak penghapusan dan kirim pesan ke Frontend
+            return response.bad_request([], "Pasien yang sudah melakukan skrining tidak bisa dihapus karena riwayat medis tidak boleh hilang.")
+            
+        # Jika belum ada skrining, boleh dihapus
         db.session.delete(pasien)
         db.session.commit()
         return response.success([], "Berhasil menghapus data pasien")
+        
     except Exception as e:
+        db.session.rollback()
         print(e)
         return response.bad_request([], "Gagal menghapus data pasien")
-
 
 def format_array(datas):
     array = []
     for data_table in datas:
         array.append(single_object(data_table))
-
     return array
 
 def single_object(data_pasien):
-    # PERBAIKAN: Menangani kasus jika jenis_kelamin adalah string atau enum
     jk_value = ""
     if hasattr(data_pasien.jenis_kelamin, 'value'):
-        # Jika ini adalah objek enum, ambil nilainya
         jk_value = data_pasien.jenis_kelamin.value
     elif isinstance(data_pasien.jenis_kelamin, str):
-        # Jika ini sudah berupa string (dari data lama), gunakan langsung
         jk_value = data_pasien.jenis_kelamin
 
     data_dict = {
@@ -180,16 +246,15 @@ def single_object(data_pasien):
         "user_id": data_pasien.user_id,
         "kecamatan_id": data_pasien.kecamatan_id,
         "nama": data_pasien.nama,
-        "nik": data_pasien.nik,
+        "nik": data_pasien.nik, # <-- SQLAlchemy otomatis mendekripsi ini jadi angka normal untuk ditampilkan
         "alamat": data_pasien.alamat,
-        "tanggal_lahir": data_pasien.tanggal_lahir.isoformat(),
+        "tanggal_lahir": data_pasien.tanggal_lahir.isoformat() if data_pasien.tanggal_lahir else None,
         "usia": data_pasien.usia,
         "jenis_kelamin": jk_value,
         "no_hp": data_pasien.no_hp,
         "pekerjaan": data_pasien.pekerjaan,
     }
 
-    #Tampilkan nama kecamatan, kabupaten, dan provinsi
     if data_pasien.kecamatan:
         data_dict["nama_kecamatan"] = data_pasien.kecamatan.nama_kecamatan
         data_dict["nama_kabupaten"] = data_pasien.kecamatan.kabupaten.nama_kabupaten
@@ -199,26 +264,17 @@ def single_object(data_pasien):
 
 @jwt_required()
 def get_pasien():
-    """
-    GET /pasien
-    - Jika role == 'user' => kembalikan hanya pasien yang user miliki (user_id dari JWT)
-    - Jika role == 'admin_puskesmas' atau 'super_admin' => kembalikan semua pasien
-    - Opsional: support query ?user_id= untuk admin
-    """
     try:
         claims = get_jwt()
         role = claims.get("role")
         current_user_id = claims.get("id")
 
-        # Jika admin ingin mem-filter berdasarkan query param user_id
         q_user_id = request.args.get("user_id", None)
         query = Pasien.query
 
         if role == "user":
-            # hanya pasien milik user yang sedang login
             query = query.filter_by(user_id=current_user_id)
         else:
-            # admin dapat memfilter dengan query param user_id jika diberikan
             if q_user_id:
                 try:
                     qid = int(q_user_id)
@@ -227,23 +283,7 @@ def get_pasien():
                     return response.bad_request([], "user_id tidak valid")
 
         pasien_list = query.all()
-
-        # Konversi ke dict sederhana
-        results = []
-        for p in pasien_list:
-            results.append({
-                "id": p.id,
-                "nama": p.nama,
-                "nik": p.nik,
-                "alamat": p.alamat,
-                "tanggal_lahir": p.tanggal_lahir.isoformat() if getattr(p, "tanggal_lahir", None) else None,
-                "usia": p.usia,
-                "jenis_kelamin": p.jenis_kelamin.value if getattr(p, "jenis_kelamin", None) else None,
-                "no_hp": p.no_hp,
-                "pekerjaan": p.pekerjaan,
-                "user_id": p.user_id,
-                "kecamatan_id": p.kecamatan_id,
-            })
+        results = [single_object(p) for p in pasien_list]
 
         return response.success(results, "Daftar pasien berhasil diambil")
     except Exception as e:

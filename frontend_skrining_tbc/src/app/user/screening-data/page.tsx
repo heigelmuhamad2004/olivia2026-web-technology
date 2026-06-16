@@ -7,6 +7,7 @@ import { zodResolver } from "@hookform/resolvers/zod"
 import { ChevronDownIcon } from "lucide-react"
 import { useForm } from "react-hook-form"
 import { z } from "zod"
+import { toast } from "sonner"
 
 // Impor service pasien yang baru
 import { createPatient } from "@/app/services/pasien.services"
@@ -128,11 +129,13 @@ export default function Page() {
   async function onSubmit(values: FormValues) {
     try {
       const response = await createPatient(values)
-      alert("Pasien baru berhasil ditambahkan!")
-      router.push(`/user/screening-kesehatan?pasienId=${response.data.id}`)
+      toast.success("Pasien baru berhasil ditambahkan!")
+      setTimeout(() => {
+        router.push(`/user/screening-kesehatan?pasienId=${response.data.id}`)
+      }, 1500) // Delay 1.5 detik agar toast terbaca
     } catch (error) {
-      alert("Gagal menambahkan pasien. Silakan coba lagi.")
       console.error(error)
+      toast.error("Gagal menambahkan pasien. Silakan coba lagi.")
     }
   }
 

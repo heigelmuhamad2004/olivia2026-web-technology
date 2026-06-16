@@ -2,7 +2,7 @@ services:
   # 1. DATABASE MYSQL
   db:
     image: mysql:8.0
-    restart: always
+    restart: unless-stopped
     environment:
       MYSQL_ALLOW_EMPTY_PASSWORD: 'yes'
       MYSQL_DATABASE: db_tbcheckv2
@@ -14,9 +14,9 @@ services:
   # 2. PHPMYADMIN
   phpmyadmin:
     image: phpmyadmin/phpmyadmin
-    restart: always
     ports:
       - "8080:80"
+    restart: unless-stopped
     environment:
       PMA_HOST: db
       PMA_USER: root
@@ -29,11 +29,13 @@ services:
     build: ./backend_skrining_tbc
     ports:
       - "5000:5000"
+    restart: unless-stopped
     # volumes:
     #   - ./backend_skrining_tbc:/app  <-- Dimatikan agar tidak menimpa file Docker
     environment:
       - FLASK_ENV=production
       - PYTHONUNBUFFERED=1           # <-- Ditambahkan agar log langsung muncul
+      - ENCRYPTION_KEY=rahasia-kunci-enkripsi-tbc-2026!
     depends_on:
       - db
 
@@ -42,11 +44,13 @@ services:
     build: ./frontend_skrining_tbc
     ports:
       - "3000:3000"
+    restart: unless-stopped
     # volumes:
     #   - ./frontend_skrining_tbc:/app <-- Dimatikan agar folder .next tidak hilang
     #   - /app/node_modules
     depends_on:
       - backend-ai
+    
 
 volumes:
   db_data:

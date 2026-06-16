@@ -5,6 +5,7 @@ import { IconCalendar } from "@tabler/icons-react"
 import { format } from "date-fns"
 import { useForm } from "react-hook-form"
 import * as z from "zod"
+import { toast } from "sonner"
 
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
@@ -74,7 +75,7 @@ export function AddPatientModal({ open, onOpenChange }: AddPatientModalProps) {
   function onSubmit(values: z.infer<typeof formSchema>) {
     // TODO: Implementasikan logika untuk mengirim data baru ke backend/API
     console.log("Data Pasien Baru:", values)
-    alert(`Pasien baru ${values.nama} berhasil ditambahkan! (Cek console)`)
+    toast.success(`Pasien baru ${values.nama} berhasil ditambahkan!`)
     onOpenChange(false)
     form.reset()
   }

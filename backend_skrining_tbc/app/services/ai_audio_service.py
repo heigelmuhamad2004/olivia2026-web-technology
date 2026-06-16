@@ -1,5 +1,3 @@
-# app/services/ai_audio_service.py
-
 import os
 import io
 import math
@@ -12,7 +10,6 @@ from PIL import Image
 import tensorflow as tf
 from tensorflow.keras.models import load_model
 import base64
-import math
 
 import matplotlib
 matplotlib.use('Agg')
@@ -34,47 +31,55 @@ class CustomConv2D(tf.keras.layers.Conv2D):
 custom_objects_patch = {
     'Dense': CustomDense,
     'Conv2D': CustomConv2D,
-    'Recall': tf.keras.metrics.Recall # Tambahkan ini karena kita pakai Recall saat training!
+    'Recall': tf.keras.metrics.Recall 
 }
 # =========================================================
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 MODELS_DIR = os.path.join(BASE_DIR, 'ml_models')
 
-print("⏳ Memuat model AI Audio...")
+print("Memuat model AI Audio...")
 MODELS = {}
 try:
+    # PASTIKAN NAMA FILE INI SESUAI DENGAN YANG ADA DI FOLDER ml_models KAMU
     MODELS = {
-        "cnn": load_model(os.path.join(MODELS_DIR, 'model_custom4_cnn_terbaik.h5'), custom_objects=custom_objects_patch),
-        "densenet": load_model(os.path.join(MODELS_DIR, 'model_densenet_terbaik.h5'), custom_objects=custom_objects_patch)
+        "cnn": load_model(os.path.join(MODELS_DIR, 'model_Custom_CNN_epoch_75.h5'), custom_objects=custom_objects_patch),
+        "densenet": load_model(os.path.join(MODELS_DIR, 'model_DenseNet_epoch_150.h5'), custom_objects=custom_objects_patch)
     }
-    print("✅ Model AI Audio berhasil dimuat!")
+    print("Model AI Audio berhasil dimuat!")
 except Exception as e:
-    print(f"❌ Gagal memuat model Audio: {e}")
+    print(f"Gagal memuat model Audio: {e}")
 
 class AIAudioService:
     
     @staticmethod
     def generate_preview_base64(audio_path):
-        """Memotong audio 1.2s di puncak suara dan mengembalikan Base64 Audio untuk diputar di Frontend."""
+        """Memotong audio tepat 0.5s di puncak suara (Sesuai dataset Synapse)."""
         try:
             y, sr = librosa.load(audio_path, sr=22050)
             
             # Hapus hening
             y_trimmed, _ = librosa.effects.trim(y, top_db=20)
+            
+            # PENAMBAHAN: Cek jika audio terlalu hening setelah di-trim
+            if len(y_trimmed) == 0:
+                raise ValueError("Suara tidak terdeteksi atau terlalu hening. Silakan rekam ulang.")
+
             if np.max(np.abs(y_trimmed)) < 0.05:
                 raise ValueError("Suara terlalu pelan. Silakan rekam ulang batuk yang lebih jelas.")
 
-            # Smart Crop 1.2 Detik
+            # PERUBAHAN KRUSIAL 1: Pemotongan Pintar 0.5 Detik (Bukan 1.2 lagi)
+            target_samples = int(0.5 * sr)
             titik_puncak = np.argmax(np.abs(y_trimmed))
-            total_samples = int(1.2 * sr)
-            titik_awal = max(0, titik_puncak - int(0.2 * sr))
-            titik_akhir = min(len(y_trimmed), titik_awal + total_samples)
             
-            if titik_akhir - titik_awal < total_samples:
-                titik_awal = max(0, titik_akhir - total_samples)
-                
-            y_potong = y_trimmed[titik_awal:titik_akhir]
+            # Ambil rentang tengah dari puncak
+            awal = max(0, titik_puncak - (target_samples // 2))
+            akhir = min(len(y_trimmed), awal + target_samples)
+            y_potong = y_trimmed[awal:akhir]
+
+            # Jika durasi kurang dari 0.5 detik, lakukan Zero-Padding agar dimensi gambar konsisten
+            if len(y_potong) < target_samples:
+                y_potong = np.pad(y_potong, (0, target_samples - len(y_potong)), mode='constant')
 
             # Simpan ke memori (buffer) lalu jadikan Base64
             buffer = io.BytesIO()
@@ -89,17 +94,17 @@ class AIAudioService:
 
     @classmethod
     def analyze(cls, audio_path, model_type="cnn"):
-        """Menerima file audio yang sudah DISETUJUI user, membuat spektrogram, dan memprediksi."""
+        """Membuat spektrogram dengan ketelitian tinggi dan memprediksi."""
         if model_type not in MODELS:
             raise ValueError(f"Model {model_type} tidak dikenali.")
             
         model = MODELS[model_type]
         
-        # 1. Load audio (audio ini sudah dipotong 1.2s dari tahap preview)
+        # 1. Load audio (sudah dipotong 0.5s secara sempurna di tahap preview)
         y, sr = librosa.load(audio_path, sr=22050)
         
-        # 2. Buat Spektrogram
-        S = librosa.feature.melspectrogram(y=y, sr=sr, n_mels=128, fmax=8000)
+        # PERUBAHAN KRUSIAL 2: Parameter hop_length=64 dan n_fft=1024 agar pola visual sama dengan saat training
+        S = librosa.feature.melspectrogram(y=y, sr=sr, n_mels=128, n_fft=1024, hop_length=64)
         S_dB = librosa.power_to_db(S, ref=np.max)
 
         fig = plt.figure(figsize=(3, 3))
@@ -117,11 +122,11 @@ class AIAudioService:
         
         input_tensor = np.expand_dims(np.array(img_pil).astype(np.float32) / 255.0, axis=0)
 
-        # 4. Prediksi AI (Sigmoid menghasilkan 1 nilai)
+        # 4. Prediksi AI
         prediction = model.predict(input_tensor, verbose=0)
         probabilitas = float(prediction[0][0])
         
-        # 5. Matematika Inverse Sigmoid (Logit)
+        # 5. Matematika Inverse Sigmoid
         epsilon = 1e-7
         p_safe = max(min(probabilitas, 1 - epsilon), epsilon)
         raw_logit_z = math.log(p_safe / (1 - p_safe))
@@ -144,11 +149,11 @@ class AIAudioService:
 
     @classmethod
     def analyze_dual_model(cls, audio_path):
-        """Menjalankan CNN dan DenseNet secara bersamaan untuk 1 file audio."""
+        """Menjalankan CNN dan DenseNet secara bersamaan dengan Data Evaluasi Asli."""
         try:
-            # 1. Load Audio & Buat Spektrogram
+            # 1. Load Audio & Buat Spektrogram (Dengan hop_length=64)
             y, sr = librosa.load(audio_path, sr=22050)
-            S = librosa.feature.melspectrogram(y=y, sr=sr, n_mels=128, fmax=8000)
+            S = librosa.feature.melspectrogram(y=y, sr=sr, n_mels=128, n_fft=1024, hop_length=64)
             S_dB = librosa.power_to_db(S, ref=np.max)
 
             fig = plt.figure(figsize=(3, 3))
@@ -168,9 +173,10 @@ class AIAudioService:
             pred_cnn = float(MODELS["cnn"].predict(input_tensor, verbose=0)[0][0])
             pred_dense = float(MODELS["densenet"].predict(input_tensor, verbose=0)[0][0])
 
-            # 3. Metrik Statis Hasil Training (Ganti dengan angkamu sendiri nanti)
-            METRIK_CNN = {"rmse": 12.45, "mae": 8.30, "mse": 1.55}
-            METRIK_DENSE = {"rmse": 10.12, "mae": 7.05, "mse": 1.02}
+            # PERUBAHAN KRUSIAL 3: Memasukkan nilai metrik asli dari hasil evaluasi semalam
+            # CNN menggunakan nilai dari Epoch 75, DenseNet menggunakan Epoch 150
+            METRIK_CNN = {"rmse": 51.31, "mae": 44.58, "auroc": 0.7390}
+            METRIK_DENSE = {"rmse": 50.76, "mae": 29.81, "auroc": 0.7393}
 
             return {
                 "cnn": {

@@ -1,14 +1,15 @@
 "use client"
 
-import { useState, useRef } from "react"
+import { useState, useRef, Suspense } from "react"
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
+
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { useSearchParams, useRouter } from "next/navigation"
 import { Upload, Mic, Search, X, Loader2, FileImage, Activity, Scissors, AlertTriangle, Plus, LayoutDashboard } from "lucide-react"
 import { SkriningSuaraService, DualEvaluationResponse } from "@/app/services/skrining-suara.services"
 
-export default function UjiKomparasiAI() {
+function UjiKomparasiContent() {
   const searchParams = useSearchParams()
   const router = useRouter()
   const skriningId = searchParams.get("skriningId")
@@ -323,5 +324,22 @@ export default function UjiKomparasiAI() {
         </div>
       )}
     </div>
+  )
+}
+
+export default function UjiKomparasiPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="flex h-screen items-center justify-center">
+          <div className="flex items-center gap-2 text-[14px] text-muted-foreground">
+            <Loader2 className="w-4 h-4 animate-spin" />
+            Memuat halaman komparasi...
+          </div>
+        </div>
+      }
+    >
+      <UjiKomparasiContent />
+    </Suspense>
   )
 }

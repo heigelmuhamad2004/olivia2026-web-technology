@@ -8,6 +8,7 @@ import {
   IconNotification,
   IconUserCircle,
 } from "@tabler/icons-react"
+import { toast } from "sonner"
 
 import { logoutUser } from "@/app/services/auth.services" // Import fungsi logout
 import {
@@ -44,13 +45,27 @@ export function NavUser({
   const router = useRouter()
 
   // Fungsi untuk menangani logout
-  const handleLogout = async () => {
-    try {
-      await logoutUser() // Memanggil API logout
-    } finally {
-      localStorage.removeItem("accessToken") // Pastikan token dihapus
-      router.push("/") // Arahkan ke halaman utama
-    }
+  const handleLogout = () => {
+    toast("Konfirmasi Logout", {
+      description: "Apakah Anda yakin ingin keluar dari TBCheck?",
+      action: {
+        label: "Ya, Keluar",
+        onClick: async () => {
+          try {
+            await logoutUser()
+            localStorage.removeItem("accessToken")
+            toast.success("Anda berhasil logout.")
+            router.push("/")
+          } catch (error) {
+            toast.error("Terjadi kesalahan saat logout.")
+          }
+        },
+      },
+      cancel: {
+        label: "Batal",
+        onClick: () => {},
+      },
+    })
   }
 
   // Ambil inisial nama untuk AvatarFallback

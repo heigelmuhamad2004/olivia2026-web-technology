@@ -3,6 +3,7 @@ import { Geist, Geist_Mono } from "next/font/google";
 import Footer05Page from "@/components/footer-05/footer-05";
 import NavbarPublic from "@/components/navbar-public";
 import { Footer } from "@/components/footer";
+import { Toaster } from "sonner";
 
 
 const geistSans = Geist({
@@ -30,6 +31,15 @@ export default function PublicLayout({
       <NavbarPublic />
       <main>{children}</main>
       <Footer/>
+      <Toaster 
+        richColors 
+        position="top-center" 
+        toastOptions={{
+          classNames: {
+            toast: "w-[90vw] max-w-[400px] sm:w-auto mx-auto",
+          },
+        }} 
+      />
     </>
   );
 }

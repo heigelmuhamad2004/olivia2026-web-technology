@@ -19,6 +19,7 @@ import { useForm } from "react-hook-form"
 import { z } from "zod"
 import ReCAPTCHA from "react-google-recaptcha"
 import { useState } from "react"
+import { toast } from "sonner"
 
 const formSchema = z.object({
   email: z.string().email("Email tidak valid"),
@@ -39,13 +40,13 @@ const SignUp02Page = () => {
   // Perbarui fungsi onSubmit
   const onSubmit = async (data: z.infer<typeof formSchema>) => {
     if (!recaptchaToken) {
-      alert("Silakan centang CAPTCHA terlebih dahulu!")
+      toast.warning("Silakan centang CAPTCHA terlebih dahulu!")
       return
     }
 
     try {
       const result = await loginUser({ ...data, recaptcha_token: recaptchaToken })
-      console.log("Login berhasil:", result)
+      toast.success("Login berhasil!")
 
       // PERBAIKAN: Logika redirect berdasarkan role
       let redirectPath = "/" // Default path jika role tidak dikenali
@@ -61,10 +62,12 @@ const SignUp02Page = () => {
           break
       }
       
-      router.push(redirectPath)
+      setTimeout(() => {
+        router.push(redirectPath)
+      }, 1500) // Delay 1.5 detik agar toast terbaca
     } catch (error) {
       console.error("Terjadi kesalahan saat login", error)
-      alert("Login gagal. Periksa kembali email dan password Anda.")
+      toast.error("Login gagal. Periksa kembali email dan password Anda.")
     }
   }
 

@@ -3,15 +3,20 @@
 import React, { useEffect, useState, useRef } from "react"
 import Link from "next/link"
 import { useSearchParams } from "next/navigation"
-import { Button } from "@/components/ui/button"
-import {
-  getRiwayatSkriningByPasien,
-  SkriningRiwayat,
-} from "@/app/services/skrining.services"
-import html2canvas from "html2canvas"
+import { motion, Variants } from "framer-motion"
 import jsPDF from "jspdf"
-import { Download, Mic, ClipboardList, BrainCircuit, ArrowLeft, Info } from "lucide-react"
-import { ResultVisualizer } from "@/components/ResultVisualizer"
+import * as htmlToImage from "html-to-image"
+import {
+  Download,
+  Mic,
+  ClipboardList,
+  BrainCircuit,
+  AlertTriangle,
+  ShieldCheck,
+  ShieldX,
+  FunctionSquare,
+} from "lucide-react"
+import { Button } from "@/components/ui/button"
 import {
   Breadcrumb,
   BreadcrumbItem,
@@ -20,23 +25,101 @@ import {
   BreadcrumbPage,
   BreadcrumbSeparator,
 } from "@/components/ui/breadcrumb"
+import { customToast } from "@/components/ui/alert-1"
+import { Separator } from "@/components/ui/separator"
+import { ResultVisualizer } from "@/components/ResultVisualizer"
+import {
+  getRiwayatSkriningByPasien,
+  SkriningRiwayat,
+} from "@/app/services/skrining.services"
 
-// Tambahkan interface ini untuk detail matematika
+// ── Types ────────────────────────────────────────────────────────────────────
+interface FusionDetails {
+  prob_klinis_rf: number
+  prob_audio_ai: number
+  prob_gabungan: number
+}
+
 interface MathDetails {
-  aktivasi: string;
-  probabilitas_p: number;
-  raw_logit_z: number;
-  threshold: number;
-  rumus: string;
-  keterangan: string;
+  audio_details?: {
+    aktivasi: string
+    probabilitas_p: number
+    raw_logit_z: number
+    threshold: number
+    rumus: string
+    keterangan: string
+  }
+  fusion_details?: FusionDetails
+  aktivasi?: string
+  probabilitas_p?: number
+  raw_logit_z?: number
+  threshold?: number
+  rumus?: string
+  keterangan?: string
 }
 
-// Perluas interface SkriningRiwayat yang sudah ada
 interface SkriningRiwayatExtended extends SkriningRiwayat {
-  detail_matematika?: MathDetails;
-  spectrogram_image?: string;
+  detail_matematika?: MathDetails
+  spectrogram_image?: string
+  gradcam_image?: string
 }
 
+// ── Animation variants ───────────────────────────────────────────────────────
+const container: Variants = {
+  hidden: { opacity: 0 },
+  visible: { opacity: 1, transition: { staggerChildren: 0.08, delayChildren: 0.1 } },
+}
+const item: Variants = {
+  hidden: { y: 12, opacity: 0 },
+  visible: { y: 0, opacity: 1, transition: { type: "spring", stiffness: 120, damping: 16 } },
+}
+
+// Fungsi untuk menampilkan 6 digit awal, 6 bintang, dan 4 digit akhir
+const maskNIK = (nik: string | undefined | null) => {
+  if (!nik || nik.length < 16) return nik || "—";
+  return nik.substring(0, 6) + "******" + nik.substring(12);
+};
+
+// ── Sub-components ───────────────────────────────────────────────────────────
+
+function DetailRow({ label, value }: { label: string; value?: string | null }) {
+  const isWarning =
+    value?.toLowerCase() === "ya" ||
+    value?.toLowerCase() === "iya" ||
+    value?.toLowerCase() === "true"
+  return (
+    <div className="flex justify-between items-start gap-3 py-1.5 border-b border-[#ebebeb] last:border-b-0">
+      <span className="text-[13px] text-[#888888] shrink-0">{label}</span>
+      <span
+        className={`text-[13px] font-medium text-right ${
+          isWarning ? "text-[#A32D2D]" : "text-[#171717]"
+        }`}
+      >
+        {value?.trim() ? value : "—"}
+      </span>
+    </div>
+  )
+}
+
+function GejalaVal({ value }: { value?: string | null }) {
+  const isYa =
+    value?.toLowerCase() === "ya" ||
+    value?.toLowerCase() === "iya" ||
+    value?.toLowerCase() === "true"
+  return (
+    <span
+      className={`inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-medium ${
+        isYa
+          ? "bg-[#FCEBEB] text-[#791F1F]"
+          : "bg-[#F1EFE8] text-[#444441]"
+      }`}
+    >
+      {value?.trim() || "—"}
+    </span>
+  )
+}
+
+// ── Main page ────────────────────────────────────────────────────────────────
 function HasilScreeningContent() {
   const searchParams = useSearchParams()
   const pasienId = searchParams.get("pasienId")
@@ -45,6 +128,8 @@ function HasilScreeningContent() {
   const [riwayat, setRiwayat] = useState<SkriningRiwayat[]>([])
   const [loading, setLoading] = useState(true)
   const [isDownloading, setIsDownloading] = useState(false)
+  
+  // Ref ini sekarang HANYA akan disematkan ke area data klinis saja
   const pdfRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -60,17 +145,56 @@ function HasilScreeningContent() {
     const element = pdfRef.current
     if (!element) return
     setIsDownloading(true)
+    
     try {
-      const canvas = await html2canvas(element, { scale: 2, useCORS: true })
-      const imgData = canvas.toDataURL("image/png")
+      // Karena elemen yang tidak diinginkan (breadcrumb/rumus) ada di LUAR pdfRef, 
+      // kita tidak perlu filter atau modifikasi height/width sama sekali. Natural!
+      const dataUrl = await htmlToImage.toPng(element, { 
+        quality: 1.0, 
+        pixelRatio: 2, 
+        backgroundColor: '#fafafa',
+        style: {
+          transform: 'none',
+          animation: 'none',
+        },
+        cacheBust: true,
+      })
+
       const pdf = new jsPDF("p", "mm", "a4")
+      
+      // 🌟 PENGATURAN MARGIN PDF (dalam satuan milimeter)
+      const marginX = 12 // Margin kiri dan kanan
+      const marginY = 15 // Margin atas dan bawah
+      
       const pdfWidth = pdf.internal.pageSize.getWidth()
-      const imgHeight = canvas.height
-      const imgWidth = canvas.width
-      pdf.addImage(imgData, "PNG", 0, 10, pdfWidth, (imgHeight * pdfWidth) / imgWidth)
+      const pdfHeight = pdf.internal.pageSize.getHeight()
+      const imgProps = pdf.getImageProperties(dataUrl)
+      
+      // Hitung dimensi gambar setelah dikurangi margin
+      const imgWidth = pdfWidth - (marginX * 2)
+      const imgHeight = (imgProps.height * imgWidth) / imgProps.width
+      
+      let heightLeft = imgHeight
+      let position = marginY // Mulai di Y = margin atas
+
+      // Render Halaman Pertama
+      pdf.addImage(dataUrl, "PNG", marginX, position, imgWidth, imgHeight)
+      heightLeft -= (pdfHeight - marginY * 2)
+
+      // Render Halaman Tambahan (jika masih ada sisa konten)
+      // Gunakan batas > 1mm untuk mencegah render halaman kosong akibat sisa koma pixel
+      while (heightLeft > 1) { 
+        position = position - pdfHeight
+        pdf.addPage()
+        pdf.addImage(dataUrl, "PNG", marginX, position, imgWidth, imgHeight)
+        heightLeft -= pdfHeight
+      }
+      
       pdf.save(`Hasil_Skrining_${hasilScreening?.nama || "Pasien"}.pdf`)
-    } catch (error) {
-      console.error("Gagal download PDF:", error)
+      customToast.success("PDF berhasil diunduh!")
+    } catch (err) {
+      console.error("Gagal download PDF:", err)
+      customToast.error("Gagal mengunduh PDF.")
     } finally {
       setIsDownloading(false)
     }
@@ -78,9 +202,9 @@ function HasilScreeningContent() {
 
   if (loading) {
     return (
-      <div className="flex h-[100vh] items-center justify-center bg-background">
-        <div className="text-[14px] text-muted-foreground flex items-center gap-2">
-          <div className="h-4 w-4 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+      <div className="flex h-screen items-center justify-center">
+        <div className="flex items-center gap-2 text-[14px] text-[#888888]">
+          <div className="h-4 w-4 animate-spin rounded-full border-2 border-[#7928ca] border-t-transparent" />
           Memuat hasil skrining...
         </div>
       </div>
@@ -89,299 +213,354 @@ function HasilScreeningContent() {
 
   if (riwayat.length === 0) {
     return (
-      <div className="flex h-[calc(100vh-5rem)] flex-col items-center justify-center text-center px-4" style={{ fontFamily: "Geist, Inter, system-ui, sans-serif" }}>
-        <h1 className="text-[20px] font-semibold tracking-tight text-foreground">Tidak Ada Riwayat Skrining.</h1>
-        <p className="mt-2 text-[14px] text-muted-foreground">Pasien ini belum pernah melakukan skrining.</p>
-        <Button asChild variant="outline" className="mt-6 rounded-full px-6 h-10 text-[14px]">
-          <Link href="/user/riwayat-screening">
-            <ArrowLeft className="mr-2 h-4 w-4" /> Kembali
-          </Link>
+      <div className="flex h-[calc(100vh-5rem)] flex-col items-center justify-center text-center px-4">
+        <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-full border border-[#ebebeb] bg-white">
+          <Mic className="h-5 w-5 text-[#888888]" />
+        </div>
+        <h1 className="text-[18px] font-semibold text-[#171717]">Tidak ada riwayat skrining</h1>
+        <p className="mt-1.5 text-[14px] text-[#888888]">Pasien ini belum pernah melakukan skrining.</p>
+        <Button asChild variant="outline" className="mt-6 rounded-full px-6">
+          <Link href="/user/riwayat-screening">Kembali</Link>
         </Button>
       </div>
     )
   }
 
-  // Ambil skrining tertentu atau terbaru
   let hasilScreening: SkriningRiwayat | undefined
-  if (skriningId) {
-    hasilScreening = riwayat.find((item) => item.id === Number(skriningId))
-  }
-  if (!hasilScreening) {
-    hasilScreening = riwayat[riwayat.length - 1]
-  }
+  if (skriningId) hasilScreening = riwayat.find((r) => r.id === Number(skriningId))
+  if (!hasilScreening) hasilScreening = riwayat[riwayat.length - 1]
 
-  const isPositif = hasilScreening.hasil_screening.toLowerCase() === "terduga"
+  const data = hasilScreening as SkriningRiwayatExtended
+  const isPositif = data.hasil_screening.toLowerCase().includes("terduga")
+  const isHybrid = (data.metode_skrining || "").toLowerCase().includes("hybrid")
+  const math = data.detail_matematika
+  const fusion = math?.fusion_details
+  const hasAiSuara = data.skor_suara_ai != null && (data.gradcam_image || data.spectrogram_image)
+  const skorTBC = fusion ? fusion.prob_gabungan : (data.skor_suara_ai ?? 0)
 
-  // Gunakan casting ke interface yang sudah diperluas
-  const dataTerpilih = hasilScreening as SkriningRiwayatExtended;
-
-  // Cek keberadaan data AI Suara
-  const hasAiSuara =
-    dataTerpilih.skor_suara_ai !== null && 
-    (dataTerpilih.spectrogram_image || dataTerpilih.gradcam_image);
-
-  // Mapping data untuk ResultVisualizer tanpa 'any'
-  const aiSuaraData = hasAiSuara
-  ? {
-      diagnosis: (dataTerpilih.skor_suara_ai ?? 0) > 50 ? "Suspek TBC" : "Normal",
-      prob_tbc: dataTerpilih.skor_suara_ai ?? 0,
-      prob_normal: 100 - (dataTerpilih.skor_suara_ai ?? 0),
-      spectrogram_image: dataTerpilih.gradcam_image || "",
-      math_details: dataTerpilih.detail_matematika || {
-        aktivasi: "Sigmoid",
-        probabilitas_p: 0,
-        raw_logit_z: 0,
-        threshold: 0.50,
-        rumus: "z = ln(P / (1 - P))",
-        keterangan: "Data matematika tidak tersedia."
-      },
-      algoritma: (dataTerpilih.metode_skrining || "").includes("DenseNet") ? "DenseNet" : "CNN",
-    }
-  : null;
+  const aiData = hasAiSuara
+    ? {
+        diagnosis: isPositif ? "Suspek TBC" : "Normal",
+        prob_tbc: skorTBC,
+        prob_normal: 100 - skorTBC,
+        spectrogram_image: data.gradcam_image || data.spectrogram_image || "",
+        math_details: math?.audio_details || math,
+        algoritma: data.metode_skrining || "AI",
+      }
+    : null
 
   return (
-    <div className="flex min-h-[calc(100vh-5rem)] w-full flex-col items-center px-4 pb-32 pt-8 sm:px-6 lg:px-8 sm:pt-12" style={{ fontFamily: "Geist, Inter, system-ui, sans-serif" }}>
-      <div className="w-full max-w-4xl space-y-6">
-        
-        {/* BREADCRUMB */}
-        <div className="w-full">
-          <Breadcrumb className="mb-2">
-              <BreadcrumbList>
-                  <BreadcrumbItem>
-                      <BreadcrumbLink asChild>
-                          <Link href="/user/riwayat-screening">Daftar Pasien</Link>
-                      </BreadcrumbLink>
-                  </BreadcrumbItem>
-                  <BreadcrumbSeparator />
-                  <BreadcrumbItem>
-                      <BreadcrumbLink asChild>
-                          <Link href={`/user/list-riwayat-pasien?pasienId=${pasienId}`}>Riwayat Skrining</Link>
-                      </BreadcrumbLink>
-                  </BreadcrumbItem>
-                  <BreadcrumbSeparator />
-                  <BreadcrumbItem>
-                      <BreadcrumbPage>Hasil Skrining</BreadcrumbPage>
-                  </BreadcrumbItem>
-              </BreadcrumbList>
+    <motion.div
+      initial="hidden"
+      animate="visible"
+      variants={container}
+      className="flex min-h-[calc(100vh-5rem)] w-full flex-col items-center bg-[#fafafa] px-4 pb-28 pt-8 sm:px-6"
+      style={{ fontFamily: "Geist, Inter, system-ui, sans-serif" }}
+    >
+      <div className="w-full max-w-4xl space-y-4">
+
+        {/* 1. BREADCRUMB (Di Luar area PDF) */}
+        <motion.div variants={item}>
+          <Breadcrumb>
+            <BreadcrumbList>
+              <BreadcrumbItem>
+                <BreadcrumbLink asChild>
+                  <Link href="/user/riwayat-screening" className="text-[13px]">Daftar pasien</Link>
+                </BreadcrumbLink>
+              </BreadcrumbItem>
+              <BreadcrumbSeparator />
+              <BreadcrumbItem>
+                <BreadcrumbLink asChild>
+                  <Link href={`/user/list-riwayat-pasien?pasienId=${pasienId}`} className="text-[13px]">Riwayat skrining</Link>
+                </BreadcrumbLink>
+              </BreadcrumbItem>
+              <BreadcrumbSeparator />
+              <BreadcrumbItem>
+                <BreadcrumbPage className="text-[13px]">Hasil skrining</BreadcrumbPage>
+              </BreadcrumbItem>
+            </BreadcrumbList>
           </Breadcrumb>
-        </div>
+        </motion.div>
 
-        {/* CONTAINER PDF (Warna ditetapkan putih khusus untuk ekspor html2canvas) */}
-        <div
-          ref={pdfRef}
-          className="w-full space-y-8 rounded-[12px] border border-border bg-card p-6 sm:p-10 shadow-[0px_1px_1px_#00000005,0px_2px_2px_#0000000a]"
-          style={{ backgroundColor: "hsl(var(--card))", color: "hsl(var(--foreground))" }}
-        >
-          {/* HEADER */}
-          <header className="space-y-3 text-center mb-8">
-            <p className="text-[12px] font-medium uppercase tracking-[0.15em] text-muted-foreground font-mono">
-              Hasil Skrining
-            </p>
-            <h1 className="text-3xl sm:text-4xl font-semibold tracking-[-0.03em] text-foreground">
-              Ringkasan hasil skrining pasien.
-            </h1>
-            <p className="mx-auto max-w-2xl text-[14px] text-muted-foreground mt-1">
-              Berikut adalah ringkasan data dan hasil skrining untuk pasien{" "}
-              <span className="font-medium text-foreground">{hasilScreening.nama}</span>.
-            </p>
-
-            {/* Badge metode skrining */}
-            <div className="flex flex-wrap items-center justify-center gap-2 pt-3">
-              <span className="inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-[12px] font-medium bg-muted/50 border border-border text-foreground">
-                <ClipboardList className="h-3.5 w-3.5" />
-                Skrining Form
-              </span>
-              {hasAiSuara && (
-                <span className="inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-[12px] font-medium bg-violet-500/10 text-violet-700 dark:text-violet-400 border border-violet-500/20">
-                  <Mic className="h-3.5 w-3.5" />
-                  Analisis Suara AI ({hasilScreening.metode_skrining})
-                </span>
+        {/* =========================================================================
+            AREA PDF REF
+            Semua yang ada di dalam div ini AKAN MASUK KE PDF.
+            ========================================================================= */}
+        <div ref={pdfRef} className="space-y-4 bg-[#fafafa]">
+          {/* ── Verdict banner ── */}
+          <motion.div
+            variants={item}
+            className="flex flex-wrap items-center gap-4 rounded-2xl border border-[#ebebeb] bg-white px-6 py-5"
+          >
+            <div
+              className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-xl ${
+                isPositif
+                  ? "bg-[#FCEBEB] text-[#A32D2D]"
+                  : "bg-[#EAF3DE] text-[#3B6D11]"
+              }`}
+            >
+              {isPositif ? (
+                <ShieldX className="h-6 w-6" />
+              ) : (
+                <ShieldCheck className="h-6 w-6" />
               )}
             </div>
-          </header>
 
-          {/* IDENTITAS */}
-          <section className="grid gap-6 rounded-[10px] bg-muted/30 border border-border p-5 sm:grid-cols-2 sm:p-6">
-            <div className="space-y-3 pb-4 sm:pb-0 sm:border-r border-border sm:pr-6">
-              <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground font-mono">
-                Identitas
+            <div className="flex-1 min-w-0">
+              <p className="text-[11px] font-medium uppercase tracking-[.06em] text-[#888888] font-mono mb-1">
+                Diagnosis akhir
               </p>
-              <div className="space-y-1.5 text-[14px]">
-                <p className="flex justify-between sm:block sm:space-x-1"><span className="text-muted-foreground sm:font-medium sm:text-foreground">Nama:</span> <span className="font-medium sm:font-normal">{hasilScreening.nama}</span></p>
-                <p className="flex justify-between sm:block sm:space-x-1"><span className="text-muted-foreground sm:font-medium sm:text-foreground">NIK:</span> <span>{hasilScreening.nik}</span></p>
-                <p className="flex justify-between sm:block sm:space-x-1">
-                  <span className="text-muted-foreground sm:font-medium sm:text-foreground">Tanggal lahir:</span>{" "}
-                  <span>{hasilScreening.tanggal_lahir} ({hasilScreening.usia})</span>
-                </p>
-                <p className="flex justify-between sm:block sm:space-x-1"><span className="text-muted-foreground sm:font-medium sm:text-foreground">Jenis kelamin:</span> <span>{hasilScreening.kelamin}</span></p>
-                <p className="flex flex-col sm:block sm:space-x-1"><span className="text-muted-foreground sm:font-medium sm:text-foreground">Alamat:</span> <span>{hasilScreening.alamat}</span></p>
-              </div>
-            </div>
-
-            <div className="space-y-3 pt-4 border-t border-border sm:border-t-0 sm:pl-2 sm:pt-0">
-              <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground font-mono">
-                Kontak & Pekerjaan
+              <p
+                className={`text-[22px] font-semibold tracking-tight ${
+                  isPositif ? "text-[#791F1F]" : "text-[#27500A]"
+                }`}
+              >
+                {data.hasil_screening}
               </p>
-              <div className="space-y-1.5 text-[14px]">
-                <p className="flex justify-between sm:block sm:space-x-1"><span className="text-muted-foreground sm:font-medium sm:text-foreground">No. HP:</span> <span>{hasilScreening.no_hp}</span></p>
-                <p className="flex justify-between sm:block sm:space-x-1"><span className="text-muted-foreground sm:font-medium sm:text-foreground">Email:</span> <span>{hasilScreening.email || "-"}</span></p>
-                <p className="flex justify-between sm:block sm:space-x-1"><span className="text-muted-foreground sm:font-medium sm:text-foreground">Pekerjaan:</span> <span>{hasilScreening.pekerjaan || "-"}</span></p>
-                <p className="flex justify-between sm:block sm:space-x-1"><span className="text-muted-foreground sm:font-medium sm:text-foreground">Berat badan:</span> <span>{hasilScreening.berat_badan}</span></p>
-                <p className="flex justify-between sm:block sm:space-x-1"><span className="text-muted-foreground sm:font-medium sm:text-foreground">Tinggi badan:</span> <span>{hasilScreening.tinggi_badan}</span></p>
-              </div>
-            </div>
-
-            {/* HASIL SCREENING FORM */}
-            <div className="space-y-3 pt-5 border-t border-border sm:col-span-2">
-              <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground font-mono">
-                Ringkasan Hasil Skrining
-              </p>
-              <div className="space-y-4 rounded-md border border-border bg-background p-4 text-[14px]">
-                <div className="flex flex-wrap items-center gap-3">
-                  <span className="font-medium text-foreground">Status Diagnosis:</span>
-                  <span
-                    className="rounded-full px-3 py-1 text-[11px] font-bold uppercase tracking-wider"
-                    style={{
-                      backgroundColor: isPositif ? "rgba(239, 68, 68, 0.1)" : "rgba(16, 185, 129, 0.1)",
-                      color: isPositif ? "rgb(220, 38, 38)" : "rgb(5, 150, 105)",
-                    }}
-                  >
-                    {hasilScreening.hasil_screening}
+              <div className="flex flex-wrap gap-1.5 mt-2">
+                <span className="inline-flex items-center gap-1 rounded-full border border-[#D3D1C7] bg-[#F1EFE8] px-2.5 py-0.5 text-[11px] font-medium text-[#444441]">
+                  <ClipboardList className="h-3 w-3" />
+                  {isHybrid ? "Formulir klinis" : "Skrining form"}
+                </span>
+                {hasAiSuara && (
+                  <span className="inline-flex items-center gap-1 rounded-full border border-[#CECBF6] bg-[#EEEDFE] px-2.5 py-0.5 text-[11px] font-medium text-[#3C3489]">
+                    <Mic className="h-3 w-3" />
+                    {data.metode_skrining}
                   </span>
-                </div>
-
-                {isPositif && (
-                  <div className="mt-3 flex gap-3 rounded-lg border border-amber-500/20 bg-amber-500/10 p-4">
-                    <Info className="h-5 w-5 shrink-0 text-amber-600 mt-0.5" />
-                    <div className="flex flex-col">
-                        <h4 className="text-[14px] font-semibold text-amber-800 dark:text-amber-500">Rujukan Otomatis Dibuat</h4>
-                        <p className="mt-1 text-[13px] text-amber-700 dark:text-amber-400 leading-relaxed">
-                          Berdasarkan hasil skrining dan domisili Anda, sistem telah mengirimkan notifikasi ke <b>Puskesmas Kecamatan Anda</b>. Silakan datang ke Puskesmas tersebut membawa unduhan PDF ini untuk verifikasi dan pemeriksaan lanjutan.
-                        </p>
-                    </div>
-                  </div>
                 )}
               </div>
             </div>
 
-            {/* FAKTOR RISIKO */}
-            <div className="space-y-3 pt-5 border-t border-border sm:col-span-2">
-              <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground font-mono">
-                Faktor Risiko & Gejala Dilaporkan
+            <div className="text-right shrink-0">
+              <p className="text-[32px] font-semibold tracking-[-1.2px] text-[#7928ca] leading-none">
+                {skorTBC.toFixed(1)}%
               </p>
-              <div className="grid gap-x-6 gap-y-2.5 text-[13px] sm:grid-cols-2">
-                <DetailItem label="Riwayat kontak TBC" value={hasilScreening.riwayat_kontak_tbc} />
-                <DetailItem label="Pernah terdiagnosa" value={hasilScreening.pernah_terdiagnosa} />
-                <DetailItem label="Pernah berobat" value={hasilScreening.pernah_berobat_tbc} />
-                <DetailItem label="Pengobatan tdk tuntas" value={hasilScreening.pernah_berobat_tb_tapi_tidak_tuntas} />
-                <DetailItem label="Malnutrisi" value={hasilScreening.malnutrisi} />
-                <DetailItem label="Perokok" value={hasilScreening.merokok_perokok_pasif} />
-                <DetailItem label="Riwayat DM" value={hasilScreening.riwayat_dm_kencing_manis} />
-                <DetailItem label="Lansia (60+)" value={hasilScreening.lansia} />
-                <DetailItem label="Ibu hamil" value={hasilScreening.ibu_hamil} />
-                <DetailItem label="Batuk" value={hasilScreening.batuk} />
-                <DetailItem label="BB turun tanpa sebab" value={hasilScreening.bb_turun_tanpa_sebab_nafsu_makan_turun} />
-                <DetailItem label="Demam" value={hasilScreening.demam_tidak_diketahui_penyebabnya} />
-                <DetailItem label="Badan lemas" value={hasilScreening.badan_lemas} />
-                <DetailItem label="Berkeringat malam" value={hasilScreening.berkeringat_malam_tanpa_kegiatan} />
-                <DetailItem label="Sesak napas" value={hasilScreening.sesak_napas_tanpa_nyeri_dada} />
-                <DetailItem label="Pembesaran getah bening" value={hasilScreening.ada_pembesaran_getah_bening_dileher} />
+              <p className="text-[11px] text-[#888888] mt-1">probabilitas TBC</p>
+            </div>
+          </motion.div>
+
+          {/* Rujukan alert — hanya muncul jika positif */}
+          {isPositif && (
+            <motion.div
+              variants={item}
+              className="flex items-start gap-3 rounded-xl border border-[#FAC775] bg-[#FAEEDA] px-5 py-4"
+            >
+              <AlertTriangle className="h-4 w-4 shrink-0 text-[#854F0B] mt-0.5" />
+              <div>
+                <p className="text-[13px] font-medium text-[#633806] mb-1">Rujukan otomatis dibuat</p>
+                <p className="text-[12px] leading-relaxed text-[#854F0B]">
+                  Sistem telah mengirimkan notifikasi ke{" "}
+                  <span className="font-medium">Puskesmas Kecamatan</span>. Silakan datang
+                  membawa unduhan PDF ini untuk pemeriksaan TCM / Dahak lebih lanjut.
+                </p>
+              </div>
+            </motion.div>
+          )}
+
+          {/* ── Identitas + Kontak ── */}
+          <motion.div variants={item} className="grid gap-4 sm:grid-cols-2">
+            <div className="rounded-xl border border-[#ebebeb] bg-white p-5">
+              <p className="mb-3 font-mono text-[11px] font-medium uppercase tracking-[.06em] text-[#888888]">
+                Identitas pasien
+              </p>
+              <DetailRow label="Nama" value={data.nama} />
+              <DetailRow label="NIK" value={maskNIK(data.nik)} />
+              <DetailRow label="Tanggal lahir" value={`${data.tanggal_lahir} (${data.usia})`} />
+              <DetailRow label="Jenis kelamin" value={data.kelamin} />
+              <DetailRow label="Alamat" value={data.alamat} />
+            </div>
+
+            <div className="rounded-xl border border-[#ebebeb] bg-white p-5">
+              <p className="mb-3 font-mono text-[11px] font-medium uppercase tracking-[.06em] text-[#888888]">
+                Kontak & lainnya
+              </p>
+              <DetailRow label="No. HP" value={data.no_hp} />
+              <DetailRow label="Email" value={data.email} />
+              <DetailRow label="Pekerjaan" value={data.pekerjaan} />
+              <DetailRow label="Berat badan" value={data.berat_badan} />
+              <DetailRow label="Tinggi badan" value={data.tinggi_badan} />
+            </div>
+          </motion.div>
+
+          {/* ── Faktor risiko & gejala ── */}
+          <motion.div variants={item} className="rounded-xl border border-[#ebebeb] bg-white p-5">
+            <p className="mb-3 font-mono text-[11px] font-medium uppercase tracking-[.06em] text-[#888888]">
+              Faktor risiko & gejala dilaporkan
+            </p>
+            <div className="grid gap-x-8 sm:grid-cols-2">
+              {[
+                { label: "Riwayat kontak TBC", val: data.riwayat_kontak_tbc },
+                { label: "Pernah terdiagnosa", val: data.pernah_terdiagnosa },
+                { label: "Pernah berobat TBC", val: data.pernah_berobat_tbc },
+                { label: "Pengobatan tidak tuntas", val: data.pernah_berobat_tb_tapi_tidak_tuntas },
+                { label: "Malnutrisi", val: data.malnutrisi },
+                { label: "Perokok / paparan asap", val: data.merokok_perokok_pasif },
+                { label: "Riwayat DM", val: data.riwayat_dm_kencing_manis },
+                { label: "Lansia (60+)", val: data.lansia },
+                { label: "Ibu hamil", val: data.ibu_hamil },
+                { label: "Batuk > 2 minggu", val: data.batuk },
+                { label: "BB turun tanpa sebab", val: data.bb_turun_tanpa_sebab_nafsu_makan_turun },
+                { label: "Demam tanpa sebab", val: data.demam_tidak_diketahui_penyebabnya },
+                { label: "Badan lemas", val: data.badan_lemas },
+                { label: "Berkeringat malam", val: data.berkeringat_malam_tanpa_kegiatan },
+                { label: "Sesak napas", val: data.sesak_napas_tanpa_nyeri_dada },
+                { label: "Pembesaran getah bening", val: data.ada_pembesaran_getah_bening_dileher },
+              ].map(({ label, val }) => (
+                <div
+                  key={label}
+                  className="flex items-center justify-between gap-3 border-b border-[#ebebeb] py-2 last:border-b-0"
+                >
+                  <span className="text-[12.5px] text-[#888888]">{label}</span>
+                  <GejalaVal value={val} />
+                </div>
+              ))}
+            </div>
+          </motion.div>
+        </div>
+        {/* =========================================================================
+            BATAS AREA PDF
+            ========================================================================= */}
+
+        {/* ── Hybrid fusion math (HANYA TAMPIL DI UI) ── */}
+        {isHybrid && fusion && (
+          <motion.div
+            variants={item}
+            className="rounded-xl border border-[#CECBF6] bg-[#EEEDFE66] p-5"
+          >
+            <div className="mb-4 flex items-center gap-2.5">
+              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-[8px] border border-[#CECBF6] bg-[#EEEDFE]">
+                <FunctionSquare className="h-4 w-4 text-[#534AB7]" />
+              </div>
+              <div>
+                <p className="text-[13px] font-medium text-[#171717]">
+                  Pengambilan keputusan — Weighted Soft Voting
+                </p>
+                <p className="text-[11px] text-[#534AB7] font-mono">
+                  Hybrid fusion: formulir klinis + analisis suara AI
+                </p>
               </div>
             </div>
-          </section>
 
-          {/* SECTION ANALISIS AI SUARA — muncul jika ada data */}
-          {aiSuaraData ? (
-            <section className="space-y-4 pt-6 border-t border-border">
-              <div className="flex items-center gap-3">
-                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-violet-500/10 border border-violet-500/20">
-                  <BrainCircuit className="h-5 w-5 text-violet-600 dark:text-violet-400" />
-                </div>
-                <div className="flex flex-col">
-                  <p className="text-[16px] font-semibold text-foreground tracking-tight">
-                    Analisis Suara Batuk AI
-                  </p>
-                  <p className="text-[13px] text-muted-foreground">
-                    Diproses menggunakan algoritma {aiSuaraData.algoritma} — {hasilScreening.metode_skrining}
-                  </p>
-                </div>
+            <div className="rounded-lg border border-[#CECBF6] bg-white p-4 font-mono text-[13px]">
+              <div className="flex justify-between text-[#3C3489] mb-1.5">
+                <span>Probabilitas klinis (Random Forest)</span>
+                <span className="font-medium">{fusion.prob_klinis_rf.toFixed(1)}%</span>
               </div>
-              <ResultVisualizer data={aiSuaraData} />
-            </section>
-          ) : (
-            /* Placeholder jika tidak ada data AI suara */
-            <section className="rounded-[10px] border border-dashed border-border bg-muted/20 p-8 text-center pt-6 mt-6">
-              <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-background border border-border shadow-sm">
-                <Mic className="h-5 w-5 text-muted-foreground" />
+              <div className="flex justify-between text-[#3C3489] mb-3">
+                <span>Probabilitas audio AI (CNN/DenseNet)</span>
+                <span className="font-medium">{fusion.prob_audio_ai.toFixed(1)}%</span>
               </div>
-              <p className="text-[14px] font-semibold text-foreground">
-                Analisis suara tidak tersedia
+              <Separator className="mb-3" />
+              <div className="text-[12px] text-[#534AB7] space-y-1 mb-3">
+                <p>Rumus: (0.60 × {fusion.prob_klinis_rf.toFixed(1)}%) + (0.40 × {fusion.prob_audio_ai.toFixed(1)}%)</p>
+                <p>
+                  Perhitungan: {(0.6 * fusion.prob_klinis_rf).toFixed(2)}% + {(0.4 * fusion.prob_audio_ai).toFixed(2)}%
+                </p>
+              </div>
+              <div className="rounded-md border border-[#AFA9EC] bg-[#EEEDFE] px-4 py-3">
+                <span className="text-[14px] font-semibold text-[#26215C]">
+                  Skor probabilitas gabungan = {fusion.prob_gabungan.toFixed(1)}%
+                </span>
+              </div>
+              <p className="mt-2.5 text-[11px] text-[#534AB7] font-sans italic">
+                Jika skor gabungan &gt; 50%, pasien dinyatakan Terduga TBC.
               </p>
-              <p className="mt-1.5 text-[13px] text-muted-foreground max-w-sm mx-auto">
-                Skrining ini tidak menyertakan rekaman suara batuk untuk dianalisis oleh AI.
-              </p>
-            </section>
-          )}
-        </div>
+            </div>
+          </motion.div>
+        )}
+
+        {/* ── Analisis suara AI (HANYA TAMPIL DI UI) ── */}
+        {aiData ? (
+          <motion.div
+            variants={item}
+            className="rounded-xl border border-[#ebebeb] bg-white p-5"
+          >
+            <div className="mb-4 flex items-center gap-3">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-[#CECBF6] bg-[#EEEDFE]">
+                <BrainCircuit className="h-5 w-5 text-[#534AB7]" />
+              </div>
+              <div>
+                <p className="text-[14px] font-medium text-[#171717]">
+                  Bukti analisis spektrogram suara batuk
+                </p>
+                <p className="text-[12px] text-[#888888]">
+                  Diekstraksi menggunakan {aiData.algoritma} + Grad-CAM
+                </p>
+              </div>
+            </div>
+            <Separator className="mb-5" />
+            <ResultVisualizer data={aiData} />
+          </motion.div>
+        ) : (
+          <motion.div
+            variants={item}
+            className="flex flex-col items-center rounded-xl border border-dashed border-[#D3D1C7] bg-[#F1EFE866] py-10 text-center"
+          >
+            <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-full border border-[#ebebeb] bg-white">
+              <Mic className="h-4 w-4 text-[#888888]" />
+            </div>
+            <p className="text-[13px] font-medium text-[#171717]">Analisis suara tidak diperlukan</p>
+            <p className="mt-1 text-[12px] text-[#888888] max-w-xs">
+              Sistem telah memberikan keputusan klinis tanpa memerlukan konfirmasi tambahan dari suara batuk.
+            </p>
+          </motion.div>
+        )}
       </div>
 
-      {/* Action Buttons */}
-      <div className="fixed bottom-0 left-0 right-0 border-t border-border bg-background/80 backdrop-blur-md p-4 sm:p-6 flex justify-center z-40">
-        <div className="flex w-full max-w-4xl justify-end gap-3 px-2">
-            <Button asChild variant="outline" className="rounded-full px-6 h-10 text-[14px] bg-background">
+      {/* ── Action bar ── */}
+      <div className="fixed bottom-0 left-0 right-0 z-40 border-t border-[#ebebeb] bg-[#ffffffE6] backdrop-blur-sm">
+        <div className="mx-auto flex max-w-4xl items-center justify-end gap-3 px-4 py-3 sm:px-6">
+          <Button
+            asChild
+            variant="outline"
+            className="h-9 rounded-full px-5 text-[13px]"
+          >
             <Link
-                href={
+              href={
                 skriningId
-                    ? `/user/list-riwayat-pasien?pasienId=${pasienId}`
-                    : "/user/riwayat-screening"
-                }
+                  ? `/user/list-riwayat-pasien?pasienId=${pasienId}`
+                  : "/user/riwayat-screening"
+              }
             >
-                Tutup
+              Tutup
             </Link>
-            </Button>
-            <Button onClick={handleDownloadPdf} disabled={isDownloading} className="rounded-full px-6 h-10 text-[14px] shadow-[0px_1px_1px_#00000005,0px_2px_2px_#0000000a]">
+          </Button>
+          <Button
+            onClick={handleDownloadPdf}
+            disabled={isDownloading}
+            className="h-9 rounded-full px-5 text-[13px] bg-[#171717] hover:bg-[#333] text-white"
+          >
             {isDownloading ? (
-                <div className="flex items-center gap-2">
-                    <div className="h-4 w-4 animate-spin rounded-full border-2 border-primary-foreground border-t-transparent" />
-                    Menyiapkan...
-                </div>
+              <span className="flex items-center gap-2">
+                <div className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-white border-t-transparent" />
+                Menyiapkan...
+              </span>
             ) : (
-                <>
-                <Download className="mr-2 h-4 w-4" />
+              <span className="flex items-center gap-2">
+                <Download className="h-3.5 w-3.5" />
                 Unduh PDF
-                </>
+              </span>
             )}
-            </Button>
+          </Button>
         </div>
       </div>
-    </div>
+    </motion.div>
   )
 }
 
 export default function HasilScreeningPage() {
   return (
-    <React.Suspense fallback={
-      <div className="flex h-[100vh] items-center justify-center bg-background">
-        <div className="text-[14px] text-muted-foreground flex items-center gap-2">
-          <div className="h-4 w-4 animate-spin rounded-full border-2 border-primary border-t-transparent" />
-          Memuat halaman...
+    <React.Suspense
+      fallback={
+        <div className="flex h-screen items-center justify-center">
+          <div className="flex items-center gap-2 text-[14px] text-[#888888]">
+            <div className="h-4 w-4 animate-spin rounded-full border-2 border-[#7928ca] border-t-transparent" />
+            Memuat halaman...
+          </div>
         </div>
-      </div>
-    }>
+      }
+    >
       <HasilScreeningContent />
     </React.Suspense>
   )
-}
-
-// Helper component untuk list faktor risiko
-function DetailItem({ label, value }: { label: string; value?: string | null }) {
-    const isWarning = value?.toLowerCase() === "ya" || value?.toLowerCase() === "iya";
-    return (
-      <div className="flex justify-between items-center sm:justify-start sm:gap-2 border-b border-border/50 sm:border-0 pb-1.5 sm:pb-0">
-        <span className="text-muted-foreground">{label}:</span>
-        <span className={`font-medium ${isWarning ? "text-destructive" : "text-foreground"}`}>
-          {value || "-"}
-        </span>
-      </div>
-    )
 }

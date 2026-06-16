@@ -13,7 +13,7 @@ import { getActiveToken } from "@/app/services/auth.services"
 import { createSkrining } from "@/app/services/skrining.services" // Perbaikan: path impor disesuaikan
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
-import { customToast } from "@/components/ui/alert-1"
+import { toast } from "sonner"
 import {
   Form,
   FormControl,
@@ -137,36 +137,20 @@ function ScreeningFormContent() {
     defaultValues: {
       berat_badan: "",
       tinggi_badan: "",
-      riwayat_kontak_tbc: "Tidak",
-      pernah_terdiagnosis_tbc: "Tidak",
-      pernah_berobat_tbc: "Tidak",
       nama_obat_tbc: "",
-      pernah_berobat_tbc_namun_tidak_tuntas: "Tidak",
-      malnutrisi: "Tidak",
-      merokok_atau_perokok_pasif: "Tidak",
-      riwayat_diabetes_melitus_atau_kencing_manis: "Tidak",
-      lansia_lebih_dari_60_tahun: "Tidak",
-      ibu_hamil: "Tidak",
-      batuk: "Tidak",
-      bb_turun_tanpa_sebab_jelas_bb_tidak_naik_nafsu_makan_turun: "Tidak",
-      demam_yang_tidak_diketahui_penyebabnya: "Tidak",
-      badan_lemas: "Tidak",
-      berkesingat_malam_hari_tanpa_kegiatan: "Tidak",
-      sesak_napas_tanpa_nyeri_dada: "Tidak",
-      ada_pembengkakan_kelenjar_getah_bening_pada_leher_atau_ketiak: "Tidak",
     },
   })
 
   async function onSubmit(values: FormValues) {
     if (!pasienId) {
-      customToast.error("ID Pasien tidak ditemukan. Proses tidak dapat dilanjutkan.")
+      toast.error("ID Pasien tidak ditemukan. Proses tidak dapat dilanjutkan.")
       return
     }
 
     // CEK TOKEN AKTIF SEBELUM MELANJUTKAN
     const token = getActiveToken()
     if (!token) {
-      customToast.warning("Sesi Anda telah habis. Silakan login kembali.")
+      toast.warning("Sesi Anda telah habis. Silakan login kembali.")
       router.push("/auth/login")
       return
     }
@@ -175,20 +159,22 @@ function ScreeningFormContent() {
       // createSkrining seharusnya memakai token aktif di service; tetap panggil.
       const result = await createSkrining(values, pasienId)
       console.log("Skrining berhasil dibuat:", result)
-      customToast.success("Data skrining berhasil disimpan!")
+      toast.success("Data skrining berhasil disimpan!")
       
       // Tangkap ID skrining baru dari response API
       const idSkriningBaru = result?.data?.id || result?.id || result?.data_response?.id || result?.data?.data_response?.id;
       
       // Redirect berdasarkan gejala batuk
-      if (values.batuk === "Ya") {
-        router.push(`/user/screening-suara?skriningId=${idSkriningBaru}&pasienId=${pasienId}`)
-      } else {
-        router.push(`/user/hasil-screening?pasienId=${pasienId}&skriningId=${idSkriningBaru}`)
-      }
+      setTimeout(() => {
+        if (values.batuk === "Ya") {
+          router.push(`/user/screening-suara?skriningId=${idSkriningBaru}&pasienId=${pasienId}`)
+        } else {
+          router.push(`/user/hasil-screening?pasienId=${pasienId}&skriningId=${idSkriningBaru}`)
+        }
+      }, 1500) // Delay 1.5 detik agar toast terbaca
     } catch (error) {
       console.error("Terjadi kesalahan saat menyimpan data:", error)
-      customToast.error("Terjadi kesalahan saat menyimpan data. Silakan coba lagi.")
+      toast.error("Terjadi kesalahan saat menyimpan data. Silakan coba lagi.")
     }
   }
 

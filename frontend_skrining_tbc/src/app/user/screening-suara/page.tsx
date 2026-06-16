@@ -26,10 +26,7 @@ import {
 type Algorithm = "cnn" | "densenet"
 
 function DeteksiSuaraContent() {
-  const searchParams = useSearchParams()
   const router = useRouter()
-  const skriningId = searchParams.get("skriningId")
-  const pasienId = searchParams.get("pasienId")
   
   const [activeTab, setActiveTab] = useState<"upload" | "record">("upload")
   const [uploadedFile, setUploadedFile] = useState<File | null>(null)
@@ -40,6 +37,10 @@ function DeteksiSuaraContent() {
 
   const [uploadPreviewUrl, setUploadPreviewUrl] = useState<string | null>(null)
   const [recordPreviewUrl, setRecordPreviewUrl] = useState<string | null>(null)
+
+  // State untuk ID dari sessionStorage
+  const [skriningId, setSkriningId] = useState<string | null>(null)
+  const [pasienId, setPasienId] = useState<string | null>(null)
 
   const [isAnalyzing, setIsAnalyzing] = useState(false)
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
@@ -63,6 +64,14 @@ function DeteksiSuaraContent() {
   const hasAudio =
     (activeTab === "upload" && uploadedFile !== null) ||
     (activeTab === "record" && recordedBlob !== null)
+
+  useEffect(() => {
+    // Ambil ID dari sessionStorage saat komponen dimuat di client
+    const sId = sessionStorage.getItem("currentSkriningId")
+    const pId = sessionStorage.getItem("currentPasienId")
+    setSkriningId(sId)
+    setPasienId(pId)
+  }, [])
 
   useEffect(() => {
     if (uploadedFile) {
@@ -212,7 +221,8 @@ function DeteksiSuaraContent() {
 
   // 4. TAHAP REDIRECT DARI POPUP
   function goToResult() {
-    router.push(`/user/hasil-screening?pasienId=${pasienId}&skriningId=${skriningId}`)
+    // ID sudah ada di sessionStorage, jadi cukup navigasi
+    router.push(`/user/hasil-screening`)
   }
 
   return (

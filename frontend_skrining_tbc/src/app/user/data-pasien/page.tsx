@@ -97,6 +97,12 @@ const STAGGER_CONTAINER: Variants = {
   show: { transition: { staggerChildren: 0.1 } },
 }
 
+// Fungsi untuk menampilkan 6 digit awal, 6 bintang, dan 4 digit akhir
+const maskNIK = (nik: string) => {
+  if (!nik || nik.length < 16) return nik; // Jaga-jaga jika formatnya salah
+  return nik.substring(0, 6) + "******" + nik.substring(12);
+};
+
 export default function DataPasienPage() {
   const [patients, setPatients] = React.useState<Patient[]>([])
   const [isLoading, setIsLoading] = React.useState(true)
@@ -160,9 +166,13 @@ export default function DataPasienPage() {
       setPatientToDelete(null)
       setIsDeleteAlertOpen(false)
       fetchPatients()
-    } catch (error) {
-      console.error(error)
-      customToast.error("Gagal menghapus data pasien")
+    } catch (error: any) {
+      // Tutup modal agar tidak menutupi notifikasi toast
+      setIsDeleteAlertOpen(false)
+      setPatientToDelete(null)
+      // Menangkap pesan spesifik dari backend ("Pasien yang sudah melakukan...")
+      const errorMessage = error.response?.data?.message || "Gagal menghapus data pasien."
+      customToast.error(errorMessage)
     }
   }
 
@@ -286,7 +296,7 @@ export default function DataPasienPage() {
                   {patient.nama}
                 </h3>
                 <p className="text-xs text-muted-foreground font-mono bg-muted/50 px-2 py-0.5 rounded w-fit mt-1">
-                  {patient.nik}
+                  {maskNIK(patient.nik)}
                 </p>
               </CardHeader>
               <CardContent className="p-5 pt-2 space-y-2.5">
@@ -472,6 +482,10 @@ export default function DataPasienPage() {
               Tindakan ini tidak dapat dibatalkan. Data pasien{" "}
               <span className="font-semibold text-foreground">{patientToDelete?.nama}</span>{" "}
               akan dihapus secara permanen dari sistem.
+              <br /><br />
+              <span className="font-medium text-destructive">
+                Catatan: Pasien yang sudah memiliki riwayat skrining kesehatan tidak dapat dihapus.
+              </span>
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

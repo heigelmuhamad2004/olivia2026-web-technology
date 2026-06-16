@@ -1,5 +1,6 @@
 from app.model.pasien import Pasien
 from app.model.user import User
+from app.model.skrining import Skrining
 from app import db
 
 def get_pasien_filtered(current_user):
@@ -29,3 +30,16 @@ def get_pasien_filtered(current_user):
             "created_at": p.created_at.strftime("%Y-%m-%d %H:%M:%S")
         })
     return result
+
+def delete_pasien_service(pasien_id):
+    pasien = Pasien.query.get(pasien_id)
+    if not pasien:
+        raise ValueError("Data pasien tidak ditemukan.")
+        
+    # Cek apakah pasien sudah memiliki data skrining
+    skrining_terkait = Skrining.query.filter_by(pasien_id=pasien_id).first()
+    if skrining_terkait:
+        raise ValueError("Pasien yang sudah melakukan screening tidak bisa dihapus.")
+        
+    db.session.delete(pasien)
+    db.session.commit()

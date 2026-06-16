@@ -3,6 +3,7 @@ import { Geist, Geist_Mono } from "next/font/google";
 import Footer05Page from "@/components/footer-05/footer-05";
 import { Navbar02 } from "@/components/ui/shadcn-io/navbar-public";
 import { Footer } from "@/components/footer";
+import { Toaster } from "sonner";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -30,6 +31,15 @@ export default function RootLayout({
         <Navbar02/>
         <main>{children}</main>
         <Footer/>
+            <Toaster 
+              richColors 
+              position="top-center" 
+              toastOptions={{
+                classNames: {
+                  toast: "w-[90vw] max-w-[400px] sm:w-auto mx-auto",
+                },
+              }} 
+            />
       </div>
     </div>
   );

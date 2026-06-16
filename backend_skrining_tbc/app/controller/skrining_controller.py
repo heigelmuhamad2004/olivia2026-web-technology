@@ -1,6 +1,5 @@
 from app.model.skrining import Skrining
 from app.model.pasien import Pasien
-# 1. IMPORT RUJUKAN DISINI
 from app.model.rujukan import Rujukan, StatusRujukan 
 from app.services.skrining_services import hitung_status_skrining
 from app import response, db
@@ -22,7 +21,7 @@ def create_skrining():
 
         data = request.get_json() or {}
 
-        # 1. Validasi Pasien
+        # 1. Validasi Pasien (Sudah aman dari IDOR karena filter user_id)
         pasien = Pasien.query.filter_by(id=data.get("pasien_id"), user_id=user_id).first()
         if not pasien:
             return response.bad_request([], "Pasien tidak ditemukan atau bukan milik Anda")
@@ -216,6 +215,7 @@ def update_status_skrining(id):
         print("Error update_status_skrining:", e)
         return response.bad_request([], "Gagal memperbarui status skrining")
 
+
 # GET STATISTIK DI ADMIN PUSKESMAS
 @jwt_required()
 def get_statistik():
@@ -267,7 +267,7 @@ def get_statistik():
         return response.bad_request([], "Gagal mengambil statistik")
 
 
-#GET RIWAYAT SKRINING BY PASIEN ID UNTUK RUJUKAN
+# GET RIWAYAT SKRINING BY SKRINING ID UNTUK RUJUKAN
 @jwt_required()
 def get_skrining_detail(id):
     try:
@@ -277,10 +277,16 @@ def get_skrining_detail(id):
         if not skrining:
             return response.bad_request([], "Data skrining tidak ditemukan")
 
-        # Cek hak akses: User biasa hanya boleh lihat punya sendiri
+        # 🛡️ BENTENG IDOR (Penyempurnaan Hak Akses)
         claims = get_jwt()
-        if claims['role'] == 'user' and skrining.user_id != claims['id']:
-             return response.bad_request([], "Anda tidak berhak melihat data ini")
+        role = claims.get("role")
+        user_id = claims.get("id")
+        kecamatan_id = claims.get("kecamatan_id")
+        
+        if role == 'user' and skrining.user_id != user_id:
+             return response.bad_request([], "Akses Ditolak: Anda tidak berhak melihat data skrining ini")
+        elif role == 'admin_puskesmas' and skrining.pasien.kecamatan_id != kecamatan_id:
+             return response.bad_request([], "Akses Ditolak: Data skrining berada di luar wilayah Puskesmas Anda")
 
         # Gunakan helper single_object (yang sudah support data rujukan)
         data = single_object(skrining, skrining.pasien)
@@ -291,25 +297,30 @@ def get_skrining_detail(id):
         print("Error get_skrining_detail:", e)
         return response.bad_request([], "Terjadi kesalahan server")
 
-#GET RIWAYAT SKRINING BY PASIEN ID
+
+# GET RIWAYAT SKRINING BY PASIEN ID
 @jwt_required()
 def get_by_pasien(pasien_id):
     try:
         claims = get_jwt()
         role = claims.get("role")
         user_id = claims.get("id")
+        kecamatan_id = claims.get("kecamatan_id")
 
+        # 🛡️ BENTENG IDOR: Cek kepemilikan pasien sebelum memanggil skrining
+        pasien_target = Pasien.query.get(pasien_id)
+        if not pasien_target:
+            return response.bad_request([], "Pasien tidak ditemukan")
+
+        if role == "user" and pasien_target.user_id != user_id:
+            return response.bad_request([], "Akses Ditolak: Anda tidak berhak melihat riwayat pasien ini")
+        elif role == "admin_puskesmas" and pasien_target.kecamatan_id != kecamatan_id:
+            return response.bad_request([], "Akses Ditolak: Pasien berada di luar wewenang Puskesmas Anda")
+
+        # Jalankan Query
         query = db.session.query(Skrining, Pasien).join(
             Pasien, Skrining.pasien_id == Pasien.id
         ).filter(Pasien.id == pasien_id)
-
-        # User hanya boleh melihat skrining milik pasiennya sendiri
-        if role == "user":
-            query = query.filter(Pasien.user_id == user_id)
-
-        # Admin puskesmas hanya melihat sesuai kecamatan
-        if role == "admin_puskesmas":
-            query = query.filter(Pasien.kecamatan_id == claims.get("kecamatan_id"))
 
         result = query.all()
 
@@ -320,7 +331,7 @@ def get_by_pasien(pasien_id):
         return response.bad_request([], "Gagal mengambil data screening pasien")
 
 
-#HELPER FUNCTIONS
+# HELPER FUNCTIONS
 def format_array(datas):
     array = []
     for skrining, pasien in datas:
@@ -389,7 +400,6 @@ def single_object(skrining, pasien):
         "rujukan_verified_at": tgl_verifikasi,     
         
         # Ambil Data Wilayah untuk KOP SURAT
-        # Menggunakan safe navigation (getattr/check None)
         "nama_kecamatan": pasien.kecamatan.nama_kecamatan if pasien.kecamatan else "-",
         "nama_kabupaten": pasien.kecamatan.kabupaten.nama_kabupaten if (pasien.kecamatan and pasien.kecamatan.kabupaten) else "-",
     }

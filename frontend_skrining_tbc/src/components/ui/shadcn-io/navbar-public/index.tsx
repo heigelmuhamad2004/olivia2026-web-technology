@@ -4,6 +4,7 @@ import * as React from 'react';
 import { useEffect, useState, useRef } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import { toast } from 'sonner';
 import { BookOpenIcon, InfoIcon, LifeBuoyIcon } from 'lucide-react';
 import { logoutUser } from '@/app/services/auth.services';
 import { Button } from '@/components/ui/button';
@@ -125,10 +126,28 @@ export const Navbar02 = React.forwardRef<HTMLElement, Navbar02Props>(
     const containerRef = useRef<HTMLElement>(null);
     const router = useRouter();
 
-    const handleLogout = async () => {
-      await logoutUser(); // Memanggil endpoint logout di backend
-      localStorage.removeItem("accessToken"); // Menghapus token dari local storage
-      router.push("/"); // Mengarahkan ke halaman utama
+    const handleLogout = () => {
+      toast("Konfirmasi Logout", {
+        description: "Apakah Anda yakin ingin keluar dari TBCheck?",
+        action: {
+          label: "Ya, Keluar",
+          onClick: async () => {
+            try {
+              await logoutUser();
+              localStorage.removeItem("accessToken");
+              toast.success("Anda berhasil logout.");
+              router.push("/");
+            } catch (error) {
+              console.error("Gagal logout", error);
+              toast.error("Terjadi kesalahan saat logout.");
+            }
+          },
+        },
+        cancel: {
+          label: "Batal",
+          onClick: () => {},
+        },
+      });
     };
 
     useEffect(() => {
@@ -178,12 +197,12 @@ export const Navbar02 = React.forwardRef<HTMLElement, Navbar02Props>(
       <header
         ref={combinedRef}
         className={cn(
-          'sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 px-4 md:px-6 [&_*]:no-underline',
+          'sticky top-0 z-50 w-full border-b border-border bg-background/98 backdrop-blur supports-[backdrop-filter]:bg-background/80 px-4 md:px-6 [&_*]:no-underline',
           className
         )}
         {...props}
       >
-        <div className="container mx-auto flex h-16 max-w-screen-2xl items-center justify-between gap-4">
+        <div className="container mx-auto flex h-16 max-w-[1400px] items-center justify-between gap-4">
           {/* Left side */}
           <div className="flex items-center gap-2">
             {/* Mobile menu trigger */}
@@ -253,18 +272,18 @@ export const Navbar02 = React.forwardRef<HTMLElement, Navbar02Props>(
             <div className="flex items-center gap-6">
               <Link href="/user">
                 <button className="flex items-center space-x-2 text-primary hover:text-primary/90 transition-colors cursor-pointer">
-                  <span className="hidden font-bold text-xl sm:inline-block">TBCheck</span>
+              <span className="hidden font-semibold tracking-tight text-lg sm:inline-block text-foreground">TBCheck</span>
                 </button>
               </Link>
               {/* Navigation menu */}
               {!isMobile && (
                 <NavigationMenu className="flex">
-                  <NavigationMenuList className="gap-1">
+              <NavigationMenuList className="gap-2">
                 {navigationLinks.map((link, index) => (
                   <NavigationMenuItem key={index}>
                     {link.submenu ? (
                       <>
-                        <NavigationMenuTrigger>
+                    <NavigationMenuTrigger className="rounded-full text-muted-foreground hover:text-foreground font-medium text-sm h-9 px-4">
                           {link.label}
                         </NavigationMenuTrigger>
                         <NavigationMenuContent>
@@ -316,7 +335,7 @@ export const Navbar02 = React.forwardRef<HTMLElement, Navbar02Props>(
                       <NavigationMenuLink asChild>
                         <Link
                           href={link.href || '#'}
-                          className={cn(navigationMenuTriggerStyle(), 'cursor-pointer')}
+                      className={cn(navigationMenuTriggerStyle(), 'cursor-pointer rounded-full text-muted-foreground hover:text-foreground font-medium text-sm h-9 px-4')}
                         >
                           {link.label}
                         </Link>
@@ -332,14 +351,14 @@ export const Navbar02 = React.forwardRef<HTMLElement, Navbar02Props>(
           {/* Right side */}
           <div className="flex items-center gap-3">
             <Link href="/user/profil">
-              <Button variant="ghost" size="sm">
+          <Button variant="ghost" size="sm" className="rounded-full text-muted-foreground hover:text-foreground font-medium">
                 Profil Saya
               </Button>
             </Link>
 
             <Button
               size="sm"
-              className="px-4"
+          className="px-4 rounded-full font-medium"
               onClick={handleLogout}
             >
               Logout

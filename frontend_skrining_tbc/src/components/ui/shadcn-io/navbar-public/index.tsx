@@ -135,8 +135,9 @@ export const Navbar02 = React.forwardRef<HTMLElement, Navbar02Props>(
             try {
               await logoutUser();
               localStorage.removeItem("accessToken");
+              localStorage.removeItem("activeSessionId");
               toast.success("Anda berhasil logout.");
-              router.push("/");
+              window.location.href = "/auth/login";
             } catch (error) {
               console.error("Gagal logout", error);
               toast.error("Terjadi kesalahan saat logout.");

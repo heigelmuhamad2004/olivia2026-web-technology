@@ -29,8 +29,8 @@ export const loginUser = async (data: LoginData) => {
 export const getActiveToken = (): string | null => {
   if (!isBrowser()) return null   // FIX SSR
   const active = localStorage.getItem("activeSessionId")
-  if (!active) return null
-  return localStorage.getItem(`accessToken:${active}`)
+  if (!active) return localStorage.getItem("accessToken") // Fallback legacy
+  return localStorage.getItem(`accessToken:${active}`) || localStorage.getItem("accessToken")
 }
 
 // LOGOUT
@@ -38,10 +38,9 @@ export const logoutUser = async (sessionId?: string) => {
   if (!isBrowser()) return   // FIX SSR
 
   const sid = sessionId || localStorage.getItem("activeSessionId")
-  if (!sid) return
 
-  const tokenKey = `accessToken:${sid}`
-  const token = localStorage.getItem(tokenKey)
+  const tokenKey = sid ? `accessToken:${sid}` : "accessToken"
+  const token = localStorage.getItem(tokenKey) || localStorage.getItem("accessToken")
 
   try {
     if (token) {
@@ -52,9 +51,12 @@ export const logoutUser = async (sessionId?: string) => {
   } catch (error) {
     console.error("Gagal logout:", error)
   } finally {
-    localStorage.removeItem(tokenKey)
+    if (sid) {
+      localStorage.removeItem(`accessToken:${sid}`)
+    }
+    localStorage.removeItem("accessToken") // Hapus token legacy
 
-    if (localStorage.getItem("activeSessionId") === sid) {
+    if (sid && localStorage.getItem("activeSessionId") === sid) {
       const otherKey = Object.keys(localStorage).find(k => k.startsWith("accessToken:"))
       if (otherKey) {
         const nextId = otherKey.split(":")[1]
@@ -62,6 +64,8 @@ export const logoutUser = async (sessionId?: string) => {
       } else {
         localStorage.removeItem("activeSessionId")
       }
+    } else if (!sid) {
+      localStorage.removeItem("activeSessionId")
     }
   }
 }

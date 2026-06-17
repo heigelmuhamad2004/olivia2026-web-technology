@@ -4,12 +4,12 @@ import React from 'react'
 
 function SuperAdmin() {
   return (
-    <>
+    <div className="flex flex-1 flex-col gap-6 p-4 md:p-6 lg:p-8">
       <SectionCardsSuperadmin/>
-      <div className="px-4 lg:px-6">
+      <div className="w-full">
         <ChartAreaInteractive />
       </div>
-    </>
+    </div>
   )
 }
 

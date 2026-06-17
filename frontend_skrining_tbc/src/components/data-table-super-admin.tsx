@@ -87,23 +87,29 @@ const getColumns = (
   },
   {
     accessorKey: "nama",
-    header: "Nama",
+    header: () => <div className="text-[12px] font-medium uppercase tracking-wider text-muted-foreground font-mono">Nama</div>,
     cell: ({ row }) => (
-      <div className="font-medium">{row.getValue("nama")}</div>
+      <div className="font-medium text-[14px] text-foreground">{row.getValue("nama")}</div>
     ),
   },
   {
     accessorKey: "email",
-    header: "Email",
+    header: () => <div className="text-[12px] font-medium uppercase tracking-wider text-muted-foreground font-mono">Email</div>,
+    cell: ({ row }) => <div className="text-[14px] text-muted-foreground">{row.getValue("email")}</div>
   },
   {
     accessorKey: "role",
-    header: "Role",
+    header: () => <div className="text-[12px] font-medium uppercase tracking-wider text-muted-foreground font-mono">Role</div>,
+    cell: ({ row }) => (
+      <div className="text-[14px] text-muted-foreground capitalize">
+        {(row.getValue("role") as string).replace("_", " ")}
+      </div>
+    ),
   },
   {
     accessorKey: "kecamatan_id",
-    header: "Kecamatan ID",
-    cell: ({ row }) => row.getValue("kecamatan_id") || "N/A",
+    header: () => <div className="text-[12px] font-medium uppercase tracking-wider text-muted-foreground font-mono">Kecamatan ID</div>,
+    cell: ({ row }) => <div className="text-[14px] text-muted-foreground">{row.getValue("kecamatan_id") || "-"}</div>,
   },
   {
     id: "actions",
@@ -206,7 +212,7 @@ export function DataTable({
           {/* PERBAIKAN: Mengganti <Select> dengan <DropdownMenu> yang digayakan */}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="outline" size="sm" className="w-[180px] justify-between">
+              <Button variant="outline" size="sm" className="w-[180px] justify-between h-10 rounded-full px-4 text-[13px]">
                 <div className="flex items-center">
                   <IconFilter className="mr-2 size-4" />
                   <span className="truncate">{getSelectedRoleText()}</span>
@@ -236,7 +242,7 @@ export function DataTable({
 
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="outline" size="sm">
+              <Button variant="outline" size="sm" className="h-10 rounded-full px-4 text-[13px]">
                 <IconLayoutColumns />
                 <span className="hidden lg:inline">Kolom</span>
                 <IconChevronDown />
@@ -266,7 +272,7 @@ export function DataTable({
                 })}
             </DropdownMenuContent>
           </DropdownMenu>
-          <Button variant="outline" size="sm">
+          <Button variant="outline" size="sm" className="h-10 rounded-full px-4 text-[13px]">
             <IconDownload />
             <span className="hidden lg:inline">Unduh CSV</span>
           </Button>

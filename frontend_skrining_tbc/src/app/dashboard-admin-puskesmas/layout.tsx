@@ -2,6 +2,7 @@
 
 import React, { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
+import { Loader2 } from "lucide-react"
 import { getCurrentUser } from "@/app/services/auth.services"
 import { AppSidebar } from "@/components/app-sidebar-admin-puskesmas"
 import { SiteHeader } from "@/components/site-header-admin-puskesmas"
@@ -31,12 +32,12 @@ export default function DashboardAdminLayout({
       try {
         const userData = await getCurrentUser()
         if (userData.role !== "admin_puskesmas") {
-          router.push("/auth/login")
+          window.location.href = "/auth/login"
           return
         }
         setUser(userData)
       } catch (error) {
-        router.push("/auth/login")
+        window.location.href = "/auth/login"
       } finally {
         setIsLoading(false)
       }
@@ -46,27 +47,32 @@ export default function DashboardAdminLayout({
   }, [router])
 
   if (isLoading) {
-    return <div className="flex h-screen items-center justify-center">Memuat data...</div>
+    return (
+      <div className="flex h-screen w-full items-center justify-center bg-background">
+        <div className="flex items-center gap-3 text-[12px] font-mono uppercase tracking-wider text-muted-foreground">
+          <Loader2 className="size-4 animate-spin text-primary" />
+          Memuat Dashboard...
+        </div>
+      </div>
+    )
   }
 
   return (
     <SidebarProvider
       style={
         {
-          "--sidebar-width": "calc(var(--spacing) * 72)",
-          "--header-height": "calc(var(--spacing) * 12)",
+          "--sidebar-width": "256px",
+          "--header-height": "64px",
         } as React.CSSProperties
       }
     >
       {/* PERBAIKAN: Teruskan data 'user' ke AppSidebar */}
-      <AppSidebar variant="inset" user={user} />
-      <SidebarInset>
+      <AppSidebar variant="sidebar" user={user} />
+      <SidebarInset className="bg-background">
         <SiteHeader />
         <div className="flex flex-1 flex-col">
-          <div className="@container/main flex flex-1 flex-col gap-2">
-            <div className="flex flex-col gap-4 py-4 md:gap-6 md:py-6">
+          <div className="@container/main flex flex-1 flex-col">
               {children}
-            </div>
           </div>
         </div>
       </SidebarInset>

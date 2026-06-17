@@ -17,6 +17,7 @@ import { format } from "date-fns"
 import { id as localeId } from "date-fns/locale"
 
 import { getRujukanByKecamatan, verifyRujukan, Rujukan } from "@/app/services/rujukan.services"
+import { getSkriningDetail, SkriningRiwayat } from "@/app/services/skrining.services"
 
 export default function DataRujukanPage() {
   const [data, setData] = useState<Rujukan[]>([])
@@ -25,6 +26,8 @@ export default function DataRujukanPage() {
   const [catatan, setCatatan] = useState("")
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [activeTab, setActiveTab] = useState("belum-verifikasi")
+  const [detailSkrining, setDetailSkrining] = useState<SkriningRiwayat | null>(null)
+  const [loadingDetail, setLoadingDetail] = useState(false)
 
   // 1. Fetch Data dari API Backend (via Service)
   const fetchData = async () => {
@@ -45,10 +48,22 @@ export default function DataRujukanPage() {
   }, [])
 
   // 2. Handle Klik Tombol Verifikasi
-  const handleVerifyClick = (item: Rujukan) => {
+  const handleVerifyClick = async (item: Rujukan) => {
     setSelectedRujukan(item)
     setCatatan("")
+    setDetailSkrining(null)
     setIsModalOpen(true)
+
+    setLoadingDetail(true)
+    try {
+      // (item as any).skrining_id digunakan agar mencegah error Typescript jika properti tidak terexpose di interface
+      const detail = await getSkriningDetail((item as any).skrining_id)
+      setDetailSkrining(detail)
+    } catch (err) {
+      console.error(err)
+    } finally {
+      setLoadingDetail(false)
+    }
   }
 
   // 3. Submit Verifikasi ke Backend (via Service)
@@ -57,7 +72,7 @@ export default function DataRujukanPage() {
 
     try {
       await verifyRujukan(selectedRujukan.id, catatan)
-      toast.success("Pasien berhasil diverifikasi")
+      toast.success("Data pasien berhasil diverifikasi!")
       setIsModalOpen(false)
       fetchData() // Refresh tabel
     } catch (error) {
@@ -193,6 +208,27 @@ export default function DataRujukanPage() {
               </div>
             </div>
 
+            {/* Preview Gejala Klinis */}
+            <div className="space-y-2.5">
+              <Label className="text-[13px] font-medium">Preview Gejala Klinis</Label>
+              <div className="p-3 bg-muted/20 border border-border rounded-md text-[13px] max-h-[160px] overflow-y-auto hide-scrollbar">
+                {loadingDetail ? (
+                  <span className="text-muted-foreground text-xs animate-pulse">Memuat data gejala...</span>
+                ) : detailSkrining ? (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-1.5">
+                    <DetailItem label="Batuk" value={detailSkrining.batuk} />
+                    <DetailItem label="Demam" value={detailSkrining.demam_tidak_diketahui_penyebabnya} />
+                    <DetailItem label="Sesak Napas" value={detailSkrining.sesak_napas_tanpa_nyeri_dada} />
+                    <DetailItem label="Keringat Malam" value={detailSkrining.berkeringat_malam_tanpa_kegiatan} />
+                    <DetailItem label="BB Turun" value={detailSkrining.bb_turun_tanpa_sebab_nafsu_makan_turun} />
+                    <DetailItem label="Kontak TBC" value={detailSkrining.riwayat_kontak_tbc} />
+                  </div>
+                ) : (
+                  <span className="text-muted-foreground text-xs">Detail gejala tidak tersedia.</span>
+                )}
+              </div>
+            </div>
+
             <div className="space-y-2.5">
               <Label htmlFor="catatan" className="text-[13px] font-medium">Catatan Admin (Opsional)</Label>
               <Input
@@ -211,6 +247,19 @@ export default function DataRujukanPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+    </div>
+  )
+}
+
+// Komponen kecil pendukung tampilan Gejala
+function DetailItem({ label, value }: { label: string; value?: string | null }) {
+  const isWarning = value?.toLowerCase() === "ya" || value?.toLowerCase() === "iya"
+  return (
+    <div className="flex justify-between sm:gap-2 pb-1 sm:pb-0">
+      <span className="text-muted-foreground text-xs">{label}:</span>
+      <span className={`font-medium text-xs ${isWarning ? "text-destructive" : "text-foreground"}`}>
+        {value || "-"}
+      </span>
     </div>
   )
 }

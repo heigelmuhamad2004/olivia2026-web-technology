@@ -8,6 +8,7 @@ import {
   IconUserPlus,
   IconDashboard,
   IconUsers,
+  IconChartBar,
 } from "@tabler/icons-react"
 
 import { NavMainAdminPuskesmas } from "@/components/nav-main-admin-puskesmas"
@@ -49,6 +50,11 @@ const navData = {
       url: "/dashboard-super-admin/tambah-admin-puskesmas",
       icon: IconUserPlus,
     },
+    {
+      title: "Metrics",
+      url: "/dashboard-super-admin/dashboard-metrics",
+      icon: IconChartBar,
+    },
   ],
   navSecondary: [
     {
@@ -73,13 +79,14 @@ export function AppSidebar({ user, ...props }: AppSidebarProps) {
           <SidebarMenuItem>
             <SidebarMenuButton
               asChild
-              className="data-[slot=sidebar-menu-button]:!p-1.5"
+              size="lg"
+              className="hover:bg-transparent"
             >
-              <a href="/dashboard-super-admin">
-                <IconInnerShadowTop className="!size-5" />
-                <span className="text-base font-semibold">
-                  TBCheck Superadmin
-                </span>
+              <a href="/dashboard-super-admin" className="flex items-center gap-3">
+                <div className="flex aspect-square size-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
+                  <IconInnerShadowTop className="size-5" />
+                </div>
+                <span className="text-[14px] font-semibold tracking-tight">TBCheck Superadmin</span>
               </a>
             </SidebarMenuButton>
           </SidebarMenuItem>

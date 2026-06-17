@@ -79,11 +79,14 @@ export function AppSidebar({ user, ...props }: AppSidebarProps) {
           <SidebarMenuItem>
             <SidebarMenuButton
               asChild
-              className="data-[slot=sidebar-menu-button]:!p-1.5"
+              size="lg"
+              className="hover:bg-transparent"
             >
-              <a href="/dashboard-admin-puskesmas">
-                <IconInnerShadowTop className="!size-5" />
-                <span className="text-base font-semibold">TBCheck Admin</span>
+              <a href="/dashboard-admin-puskesmas" className="flex items-center gap-3">
+                <div className="flex aspect-square size-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
+                  <IconInnerShadowTop className="size-5" />
+                </div>
+                <span className="text-[14px] font-semibold tracking-tight">TBCheck Admin</span>
               </a>
             </SidebarMenuButton>
           </SidebarMenuItem>

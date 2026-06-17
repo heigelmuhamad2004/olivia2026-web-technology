@@ -122,24 +122,40 @@ function GejalaVal({ value }: { value?: string | null }) {
 // ── Main page ────────────────────────────────────────────────────────────────
 function HasilScreeningContent() {
   const searchParams = useSearchParams()
-  const pasienId = searchParams.get("pasienId")
-  const skriningId = searchParams.get("skriningId")
+  
+  // PERBAIKAN 1: Buat state untuk menyimpan ID dari kombinasi URL dan sessionStorage
+  const [pasienId, setPasienId] = useState<string | null>(null)
+  const [skriningId, setSkriningId] = useState<string | null>(null)
 
   const [riwayat, setRiwayat] = useState<SkriningRiwayat[]>([])
   const [loading, setLoading] = useState(true)
   const [isDownloading, setIsDownloading] = useState(false)
   
-  // Ref ini sekarang HANYA akan disematkan ke area data klinis saja
   const pdfRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
-    if (pasienId) {
-      getRiwayatSkriningByPasien(pasienId).then((data) => {
-        setRiwayat(data)
-        setLoading(false)
-      })
+    // Cari di URL terlebih dahulu, jika kosong, cari di sessionStorage
+    const currentPasienId = searchParams.get("pasienId") || sessionStorage.getItem("currentPasienId")
+    const currentSkriningId = searchParams.get("skriningId") || sessionStorage.getItem("currentSkriningId")
+
+    setPasienId(currentPasienId)
+    setSkriningId(currentSkriningId)
+
+    if (currentPasienId) {
+      getRiwayatSkriningByPasien(currentPasienId)
+        .then((data) => {
+          setRiwayat(data)
+          setLoading(false)
+        })
+        .catch((err) => {
+          console.error("Gagal menarik data:", err)
+          setLoading(false)
+        })
+    } else {
+      // PERBAIKAN 2: Jika tidak ada ID sama sekali, paksa loading berhenti
+      setLoading(false)
     }
-  }, [pasienId])
+  }, [searchParams])
 
   const handleDownloadPdf = async () => {
     const element = pdfRef.current
@@ -147,8 +163,6 @@ function HasilScreeningContent() {
     setIsDownloading(true)
     
     try {
-      // Karena elemen yang tidak diinginkan (breadcrumb/rumus) ada di LUAR pdfRef, 
-      // kita tidak perlu filter atau modifikasi height/width sama sekali. Natural!
       const dataUrl = await htmlToImage.toPng(element, { 
         quality: 1.0, 
         pixelRatio: 2, 
@@ -162,27 +176,22 @@ function HasilScreeningContent() {
 
       const pdf = new jsPDF("p", "mm", "a4")
       
-      // 🌟 PENGATURAN MARGIN PDF (dalam satuan milimeter)
-      const marginX = 12 // Margin kiri dan kanan
-      const marginY = 15 // Margin atas dan bawah
+      const marginX = 12 
+      const marginY = 15 
       
       const pdfWidth = pdf.internal.pageSize.getWidth()
       const pdfHeight = pdf.internal.pageSize.getHeight()
       const imgProps = pdf.getImageProperties(dataUrl)
       
-      // Hitung dimensi gambar setelah dikurangi margin
       const imgWidth = pdfWidth - (marginX * 2)
       const imgHeight = (imgProps.height * imgWidth) / imgProps.width
       
       let heightLeft = imgHeight
-      let position = marginY // Mulai di Y = margin atas
+      let position = marginY 
 
-      // Render Halaman Pertama
       pdf.addImage(dataUrl, "PNG", marginX, position, imgWidth, imgHeight)
       heightLeft -= (pdfHeight - marginY * 2)
 
-      // Render Halaman Tambahan (jika masih ada sisa konten)
-      // Gunakan batas > 1mm untuk mencegah render halaman kosong akibat sisa koma pixel
       while (heightLeft > 1) { 
         position = position - pdfHeight
         pdf.addPage()
@@ -211,24 +220,30 @@ function HasilScreeningContent() {
     )
   }
 
-  if (riwayat.length === 0) {
+  // Jika setelah loading ID pasien tetap tidak ada, atau riwayat kosong
+  if (!pasienId || riwayat.length === 0) {
     return (
       <div className="flex h-[calc(100vh-5rem)] flex-col items-center justify-center text-center px-4">
         <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-full border border-[#ebebeb] bg-white">
           <Mic className="h-5 w-5 text-[#888888]" />
         </div>
         <h1 className="text-[18px] font-semibold text-[#171717]">Tidak ada riwayat skrining</h1>
-        <p className="mt-1.5 text-[14px] text-[#888888]">Pasien ini belum pernah melakukan skrining.</p>
+        <p className="mt-1.5 text-[14px] text-[#888888]">Data skrining pasien tidak ditemukan.</p>
         <Button asChild variant="outline" className="mt-6 rounded-full px-6">
-          <Link href="/user/riwayat-screening">Kembali</Link>
+          <Link href="/user/riwayat-screening">Kembali ke Daftar Pasien</Link>
         </Button>
       </div>
     )
   }
 
   let hasilScreening: SkriningRiwayat | undefined
-  if (skriningId) hasilScreening = riwayat.find((r) => r.id === Number(skriningId))
-  if (!hasilScreening) hasilScreening = riwayat[riwayat.length - 1]
+  // PERBAIKAN 3: Jangan gunakan Number(), gunakan .toString() untuk membandingkan Hashids
+  if (skriningId) {
+    hasilScreening = riwayat.find((r) => r.id.toString() === skriningId.toString())
+  }
+  if (!hasilScreening) {
+    hasilScreening = riwayat[riwayat.length - 1]
+  }
 
   const data = hasilScreening as SkriningRiwayatExtended
   const isPositif = data.hasil_screening.toLowerCase().includes("terduga")
@@ -259,7 +274,6 @@ function HasilScreeningContent() {
     >
       <div className="w-full max-w-4xl space-y-4">
 
-        {/* 1. BREADCRUMB (Di Luar area PDF) */}
         <motion.div variants={item}>
           <Breadcrumb>
             <BreadcrumbList>
@@ -282,12 +296,7 @@ function HasilScreeningContent() {
           </Breadcrumb>
         </motion.div>
 
-        {/* =========================================================================
-            AREA PDF REF
-            Semua yang ada di dalam div ini AKAN MASUK KE PDF.
-            ========================================================================= */}
         <div ref={pdfRef} className="space-y-4 bg-[#fafafa]">
-          {/* ── Verdict banner ── */}
           <motion.div
             variants={item}
             className="flex flex-wrap items-center gap-4 rounded-2xl border border-[#ebebeb] bg-white px-6 py-5"
@@ -339,7 +348,6 @@ function HasilScreeningContent() {
             </div>
           </motion.div>
 
-          {/* Rujukan alert — hanya muncul jika positif */}
           {isPositif && (
             <motion.div
               variants={item}
@@ -357,7 +365,6 @@ function HasilScreeningContent() {
             </motion.div>
           )}
 
-          {/* ── Identitas + Kontak ── */}
           <motion.div variants={item} className="grid gap-4 sm:grid-cols-2">
             <div className="rounded-xl border border-[#ebebeb] bg-white p-5">
               <p className="mb-3 font-mono text-[11px] font-medium uppercase tracking-[.06em] text-[#888888]">
@@ -382,7 +389,6 @@ function HasilScreeningContent() {
             </div>
           </motion.div>
 
-          {/* ── Faktor risiko & gejala ── */}
           <motion.div variants={item} className="rounded-xl border border-[#ebebeb] bg-white p-5">
             <p className="mb-3 font-mono text-[11px] font-medium uppercase tracking-[.06em] text-[#888888]">
               Faktor risiko & gejala dilaporkan
@@ -417,11 +423,7 @@ function HasilScreeningContent() {
             </div>
           </motion.div>
         </div>
-        {/* =========================================================================
-            BATAS AREA PDF
-            ========================================================================= */}
 
-        {/* ── Hybrid fusion math (HANYA TAMPIL DI UI) ── */}
         {isHybrid && fusion && (
           <motion.div
             variants={item}
@@ -452,9 +454,9 @@ function HasilScreeningContent() {
               </div>
               <Separator className="mb-3" />
               <div className="text-[12px] text-[#534AB7] space-y-1 mb-3">
-                <p>Rumus: (0.60 × {fusion.prob_klinis_rf.toFixed(1)}%) + (0.40 × {fusion.prob_audio_ai.toFixed(1)}%)</p>
+                <p>Rumus: (0.70 × {fusion.prob_klinis_rf.toFixed(1)}%) + (0.30 × {fusion.prob_audio_ai.toFixed(1)}%)</p>
                 <p>
-                  Perhitungan: {(0.6 * fusion.prob_klinis_rf).toFixed(2)}% + {(0.4 * fusion.prob_audio_ai).toFixed(2)}%
+                  Perhitungan: {(0.7 * fusion.prob_klinis_rf).toFixed(2)}% + {(0.3 * fusion.prob_audio_ai).toFixed(2)}%
                 </p>
               </div>
               <div className="rounded-md border border-[#AFA9EC] bg-[#EEEDFE] px-4 py-3">
@@ -469,7 +471,6 @@ function HasilScreeningContent() {
           </motion.div>
         )}
 
-        {/* ── Analisis suara AI (HANYA TAMPIL DI UI) ── */}
         {aiData ? (
           <motion.div
             variants={item}
@@ -507,7 +508,6 @@ function HasilScreeningContent() {
         )}
       </div>
 
-      {/* ── Action bar ── */}
       <div className="fixed bottom-0 left-0 right-0 z-40 border-t border-[#ebebeb] bg-[#ffffffE6] backdrop-blur-sm">
         <div className="mx-auto flex max-w-4xl items-center justify-end gap-3 px-4 py-3 sm:px-6">
           <Button

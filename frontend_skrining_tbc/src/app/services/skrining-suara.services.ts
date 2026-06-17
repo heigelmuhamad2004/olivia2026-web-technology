@@ -1,5 +1,5 @@
-import axios from "axios";
 import { getActiveToken } from "./auth.services"; 
+import api from "./api";
 
 export interface MathDetailsSigmoid {
   aktivasi: string;
@@ -17,11 +17,9 @@ export interface SkriningRiwayat {
   metode_skrining?: string;
   skor_suara_ai?: number;
   
-  
   detail_matematika?: {
     cnn?: { probabilitas: number; diagnosis: string; spectrogram_image: string; metrics: { rmse: number; mae: number; mse: number } };
     densenet?: { probabilitas: number; diagnosis: string; spectrogram_image: string; metrics: { rmse: number; mae: number; mse: number } };
-    // metrics global dihapus
     
     aktivasi?: string;
     probabilitas_p?: number;
@@ -33,7 +31,7 @@ export interface SkriningRiwayat {
 }
 
 export interface SkriningData {
-  skrining_id?: number;
+  skrining_id?: number | string;
   hasil_deteksi_akhir?: string;
   probabilitas_tbc?: number;
   spectrogram_image?: string;
@@ -65,8 +63,6 @@ export class SkriningSuaraService {
     return { Authorization: `Bearer ${token}` };
   }
 
-
-
   // TAHAP 1: Minta Backend memotong suara 1.2 detik
   static async previewCrop(
     audioData: File | Blob,
@@ -76,8 +72,7 @@ export class SkriningSuaraService {
     formData.append("audio", audioData, fileName);
 
     try {
-      const API_URL = process.env.NEXT_PUBLIC_API_URL || "/api_flask";
-      const response = await axios.post(`${API_URL}/skrining/audio/preview`, formData, {
+      const response = await api.post(`/skrining/audio/preview`, formData, {
         headers: this.getHeaders(),
       });
       return response.data;
@@ -90,21 +85,20 @@ export class SkriningSuaraService {
     }
   }
 
-  // TAHAP 2: Eksekusi Deteksi AI dengan Base64
+  // TAHAP 2: Eksekusi Deteksi AI dengan Base64 (Tanpa mengubah ID menjadi Number)
   static async deteksiAI(
     audioBase64: string,
     model: "cnn" | "densenet",
-    skriningId: number | string
+    skriningId: string | number
   ): Promise<SkriningResponse> {
     try {
-      const API_URL = process.env.NEXT_PUBLIC_API_URL || "/api_flask";
       const payload = {
-        skrining_id: Number(skriningId),
+        skrining_id: skriningId, // <-- DIBIARKAN STRING UNTUK HASHIDS
         model: model,
         audio_base64: audioBase64
       };
 
-      const response = await axios.post(`${API_URL}/skrining/audio/detect`, payload, {
+      const response = await api.post(`/skrining/audio/detect`, payload, {
         headers: {
           ...this.getHeaders(),
           "Content-Type": "application/json"
@@ -120,16 +114,14 @@ export class SkriningSuaraService {
     }
   }
 
-  // TAHAP 3: Eksekusi Evaluasi Ganda CNN + DenseNet
-  // Tambahkan skriningId sebagai parameter
+  // TAHAP 3: Eksekusi Evaluasi Ganda CNN + DenseNet (Tanpa mengubah ID menjadi Number)
   static async evaluateDualAI(audioBase64: string, skriningId: string | number): Promise<DualEvaluationResponse> {
     try {
-      const API_URL = process.env.NEXT_PUBLIC_API_URL || "/api_flask";
       const payload = { 
         audio_base64: audioBase64,
-        skrining_id: Number(skriningId) // Kirim ke backend
+        skrining_id: skriningId // <-- DIBIARKAN STRING UNTUK HASHIDS
       };
-      const response = await axios.post(`${API_URL}/skrining/audio/evaluate-dual`, payload, {
+      const response = await api.post(`/skrining/audio/evaluate-dual`, payload, {
         headers: {
           ...this.getHeaders(),
           "Content-Type": "application/json"
@@ -142,4 +134,3 @@ export class SkriningSuaraService {
     }
   }
 }
-

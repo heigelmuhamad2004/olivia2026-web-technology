@@ -12,6 +12,7 @@ from app.model.rujukan import Rujukan, StatusRujukan
 from app.services.ai_audio_service import AIAudioService
 from app.services.ai_service import AIService
 from app.model.evaluasi import EvaluasiModel
+from app.utils.hashids_util import decode_id
 import shutil
 
 # Tentukan folder penyimpanan permanen di Docker server
@@ -20,7 +21,7 @@ os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
 @jwt_required()
 def preview_audio_crop():
-    """API 1: Menerima rekaman mentah, memotong 1.2s, mengembalikan Base64 ke Frontend"""
+    """API 1: Menerima rekaman mentah, memotong 0.5s, mengembalikan Base64 ke Frontend"""
     if 'audio' not in request.files:
         return response.bad_request([], "File audio tidak ditemukan.")
         
@@ -30,7 +31,7 @@ def preview_audio_crop():
     
     try:
         file.save(temp_path)
-        # Hasilkan Base64 potongan 1.2 detik
+        # Hasilkan Base64 potongan suara
         audio_base64 = AIAudioService.generate_preview_base64(temp_path)
         
         return response.success({
@@ -58,11 +59,18 @@ def process_audio_detect():
             return response.bad_request([], "Data audio_base64 tidak ditemukan.")
             
         audio_b64_string = req_data['audio_base64']
-        skrining_id = req_data.get('skrining_id')
         model_type = req_data.get('model', 'cnn').lower()
 
+        # --- CEK PINTAR: BACA ID ANGKA ATAUPUN HASHID ---
+        raw_id = req_data.get('skrining_id')
+        
+        if isinstance(raw_id, int) or str(raw_id).isdigit():
+            skrining_id = int(raw_id)
+        else:
+            skrining_id = decode_id(raw_id)
+
         # 1. CARI DATA SKRINING DARI TAHAP 1 (FORM KLINIS)
-        if not skrining_id or str(skrining_id) == "0":
+        if not skrining_id:
             return response.bad_request([], "ID Skrining tidak valid.")
             
         skrining = Skrining.query.filter_by(id=skrining_id, user_id=user_id).first()
@@ -87,9 +95,8 @@ def process_audio_detect():
         # =========================================================
         # 3. AMBIL DATA FORM & PREDIKSI KLINIS (Random Forest)
         # =========================================================
-        # Pastikan 'skrining.data_klinis' sesuai dengan nama kolom JSON form Anda di database
         data_form_pasien = {
-            "usia": skrining.pasien.usia if (skrining.pasien and hasattr(skrining.pasien, 'usia')) else 30, # Ambil dari relasi pasien
+            "usia": skrining.pasien.usia if (skrining.pasien and hasattr(skrining.pasien, 'usia')) else 30,
             "jenis_kelamin": skrining.pasien.jenis_kelamin.value if (skrining.pasien and hasattr(skrining.pasien, 'jenis_kelamin') and skrining.pasien.jenis_kelamin) else 'laki-laki',
             "batuk": skrining.batuk,
             "demam_yang_tidak_diketahui_penyebabnya": skrining.demam_yang_tidak_diketahui_penyebabnya,
@@ -99,8 +106,8 @@ def process_audio_detect():
             "sesak_napas_tanpa_nyeri_dada": skrining.sesak_napas_tanpa_nyeri_dada,
             "merokok_atau_perokokok_pasif": skrining.merokok_atau_perokokok_pasif,
             "pernah_terdiagnosis_tbc": skrining.pernah_terdiagnosis_tbc,
-            "kontak_erat_tbc": skrining.riwayat_kontak_tbc, # Sesuaikan nama untuk Rule Kemenkes
-            "hiv": "Tidak", # Asumsi jika tidak ada di form
+            "kontak_erat_tbc": skrining.riwayat_kontak_tbc, 
+            "hiv": "Tidak", 
             "diabetes": skrining.riwayat_diabetes_melitus_atau_kencing_manis
         }
         
@@ -113,7 +120,7 @@ def process_audio_detect():
         # =========================================================
         # 4. MULTIMODAL FUSION (Klinis 60% + Suara 40%)
         # =========================================================
-        prob_gabungan = (0.60 * prob_klinis_persen) + (0.40 * prob_audio_persen)
+        prob_gabungan = (0.70 * prob_klinis_persen) + (0.30 * prob_audio_persen)
 
         # Cek Aturan Kemenkes sebagai Bypass (Rule Based)
         def is_yes(val):
@@ -134,13 +141,12 @@ def process_audio_detect():
         # =========================================================
         # 5. PROSES TIMPA (REPLACE) DATA DI DATABASE
         # =========================================================
-        skrining.hasil_deteksi = status_akhir # <-- MENIMPA HASIL FORM LAMA
-        skrining.metode_skrining = f"Hybrid Fusion (RF + {model_type.upper()})" # <-- MENIMPA METODE
+        skrining.hasil_deteksi = status_akhir 
+        skrining.metode_skrining = f"Hybrid Fusion (RF + {model_type.upper()})"
         skrining.skor_suara_ai = prob_audio_persen 
         skrining.file_suara = f"/uploads/audio/{filename}"
         skrining.gradcam_image = hasil_ai_audio["spectrogram_image"] 
         
-        # Simpan jejak detail probabilitas ke JSON (opsional tapi bagus untuk debugging)
         skrining.detail_matematika = {
             "audio_details": hasil_ai_audio["math_details"],
             "fusion_details": {
@@ -189,12 +195,18 @@ def evaluate_dual_audio():
         req_data = request.json
         if not req_data or 'audio_base64' not in req_data:
             return response.bad_request([], "Data audio_base64 tidak ditemukan.")
-            
-        skrining_id = req_data.get('skrining_id')
+
+        # --- CEK PINTAR: BACA ID ANGKA ATAUPUN HASHID ---
+        raw_id = req_data.get('skrining_id')
+        
+        if isinstance(raw_id, int) or str(raw_id).isdigit():
+            skrining_id = int(raw_id)
+        else:
+            skrining_id = decode_id(raw_id)
+        
         if not skrining_id:
             return response.bad_request([], "ID Skrining tidak ditemukan.")
             
-        # Cari data skrining milik pasien ini
         skrining = Skrining.query.filter_by(id=skrining_id, user_id=user_id).first()
         if not skrining:
             return response.bad_request([], "Data skrining tidak valid.")
@@ -203,22 +215,19 @@ def evaluate_dual_audio():
         header, encoded = audio_b64_string.split(",", 1)
         audio_data = base64.b64decode(encoded)
         
-        # Simpan file fisik
         filename = f"skrining_dual_{skrining.id}_{uuid.uuid4().hex[:8]}.wav"
         permanent_audio_path = os.path.join(UPLOAD_FOLDER, filename)
         with open(permanent_audio_path, "wb") as f:
             f.write(audio_data)
 
-        # Hitung Komparasi
         hasil_evaluasi = AIAudioService.analyze_dual_model(permanent_audio_path)
 
         # UPDATE DATABASE SKRINING UTAMA
         skrining.metode_skrining = "Uji Komparasi (CNN vs DenseNet)"
-        skrining.skor_suara_ai = hasil_evaluasi["cnn"]["probabilitas"] # Gunakan CNN sebagai skor utama
+        skrining.skor_suara_ai = hasil_evaluasi["cnn"]["probabilitas"]
         skrining.file_suara = f"/uploads/audio/{filename}"
         skrining.gradcam_image = hasil_evaluasi["cnn"]["spectrogram_image"] 
         
-        # MAGIC: Selipkan SEMUA data metrik dan densenet ke dalam kolom JSON ini!
         skrining.detail_matematika = hasil_evaluasi 
         
         db.session.commit()

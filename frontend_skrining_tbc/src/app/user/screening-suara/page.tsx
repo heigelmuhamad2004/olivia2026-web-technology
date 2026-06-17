@@ -13,7 +13,6 @@ import { cn } from "@/lib/utils"
 import { SkriningSuaraService, SkriningData } from "@/app/services/skrining-suara.services"
 import { LayerAnimation } from "@/components/LayerAnimation"
 
-// 👇 Import komponen Dialog untuk Popup cantik
 import {
   Dialog,
   DialogContent,
@@ -27,6 +26,7 @@ type Algorithm = "cnn" | "densenet"
 
 function DeteksiSuaraContent() {
   const router = useRouter()
+  const searchParams = useSearchParams() // <-- DITAMBAHKAN UNTUK BACA HASHID DI URL
   
   const [activeTab, setActiveTab] = useState<"upload" | "record">("upload")
   const [uploadedFile, setUploadedFile] = useState<File | null>(null)
@@ -38,21 +38,18 @@ function DeteksiSuaraContent() {
   const [uploadPreviewUrl, setUploadPreviewUrl] = useState<string | null>(null)
   const [recordPreviewUrl, setRecordPreviewUrl] = useState<string | null>(null)
 
-  // State untuk ID dari sessionStorage
   const [skriningId, setSkriningId] = useState<string | null>(null)
   const [pasienId, setPasienId] = useState<string | null>(null)
 
   const [isAnalyzing, setIsAnalyzing] = useState(false)
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
 
-  // STATE UNTUK ALUR UX BARU (2 TAHAP POTONG & DETEKSI)
   const [isCropping, setIsCropping] = useState(false)
   const [croppedAudioBase64, setCroppedAudioBase64] = useState<string | null>(null)
 
-  // STATE UNTUK ANIMASI
   const [showLayerAnimation, setShowLayerAnimation] = useState(false)
-  const [isProcessingResult, setIsProcessingResult] = useState(false) // Loading dramatis
-  const [showSuccessDialog, setShowSuccessDialog] = useState(false)   // Popup cantik
+  const [isProcessingResult, setIsProcessingResult] = useState(false) 
+  const [showSuccessDialog, setShowSuccessDialog] = useState(false)   
   const [pendingResult, setPendingResult] = useState<SkriningData | null>(null)
 
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -66,12 +63,16 @@ function DeteksiSuaraContent() {
     (activeTab === "record" && recordedBlob !== null)
 
   useEffect(() => {
-    // Ambil ID dari sessionStorage saat komponen dimuat di client
-    const sId = sessionStorage.getItem("currentSkriningId")
-    const pId = sessionStorage.getItem("currentPasienId")
+    // PRIORITASKAN AMBIL ID DARI URL DAHULU, BARU SESSION STORAGE
+    const urlSkriningId = searchParams.get("skriningId")
+    const urlPasienId = searchParams.get("pasienId")
+
+    const sId = urlSkriningId || sessionStorage.getItem("currentSkriningId")
+    const pId = urlPasienId || sessionStorage.getItem("currentPasienId")
+    
     setSkriningId(sId)
     setPasienId(pId)
-  }, [])
+  }, [searchParams])
 
   useEffect(() => {
     if (uploadedFile) {
@@ -97,7 +98,7 @@ function DeteksiSuaraContent() {
     const file = e.target.files?.[0]
     if (file) {
       setUploadedFile(file)
-      setCroppedAudioBase64(null) // Reset crop jika ganti file
+      setCroppedAudioBase64(null) 
     }
   }
 
@@ -127,7 +128,7 @@ function DeteksiSuaraContent() {
       }
       mr.start()
       setIsRecording(true)
-      setCroppedAudioBase64(null) // Reset crop saat mulai rekam baru
+      setCroppedAudioBase64(null) 
       setSeconds(0)
       timerRef.current = setInterval(() => setSeconds((s) => s + 1), 1000)
     } else {
@@ -145,9 +146,6 @@ function DeteksiSuaraContent() {
     setCroppedAudioBase64(null)
   }
 
-  // ==========================================
-  // TAHAP 1: MEMINTA BACKEND MEMOTONG AUDIO
-  // ==========================================
   async function handleCropAudio() {
     const audioData = activeTab === "upload" ? uploadedFile : recordedBlob
     if (!audioData) return
@@ -172,9 +170,6 @@ function DeteksiSuaraContent() {
     }
   }
 
-  // ==========================================
-  // TAHAP 2: DETEKSI AI MENGGUNAKAN AUDIO POTONGAN
-  // ==========================================
   async function handleDeteksi() {
     if (!skriningId) {
       setErrorMsg("ID Skrining tidak ditemukan. Silakan isi form skrining kesehatan terlebih dahulu.")
@@ -187,17 +182,15 @@ function DeteksiSuaraContent() {
     setErrorMsg(null)
     setShowSuccessDialog(false)
     setPendingResult(null)
-    setShowLayerAnimation(false) // Reset animasi
+    setShowLayerAnimation(false) 
 
     try {
       const response = await SkriningSuaraService.deteksiAI(croppedAudioBase64, selectedAlgo, skriningId)
 
       if (response.data) {
         setPendingResult(response.data)
-        // LANJUT KE ANIMASI (Jangan tampilkan pesan apapun dulu)
         setShowLayerAnimation(true) 
       } else {
-        // Jika benar-benar gagal
         setErrorMsg(response.message || "Gagal mendeteksi suara dari server.")
       }
     } catch (error) {
@@ -207,22 +200,18 @@ function DeteksiSuaraContent() {
     }
   }
 
-  // 3. TAHAP SETELAH ANIMASI SELESAI
   function handleAnimationComplete() {
-    setShowLayerAnimation(false) // Tutup animasi per layer
-    setIsProcessingResult(true)  // Jalankan Loading "Memproses hasil..."
+    setShowLayerAnimation(false) 
+    setIsProcessingResult(true)  
 
-    // Beri jeda dramatis 2 detik agar terlihat AI sedang menyusun laporan
     setTimeout(() => {
       setIsProcessingResult(false)
-      setShowSuccessDialog(true) // Tampilkan Popup Cantik
+      setShowSuccessDialog(true) 
     }, 2000)
   }
 
-  // 4. TAHAP REDIRECT DARI POPUP
   function goToResult() {
-    // ID sudah ada di sessionStorage, jadi cukup navigasi
-    router.push(`/user/hasil-screening`)
+    router.push(`/user/hasil-screening?pasienId=${pasienId}&skriningId=${skriningId}`)
   }
 
   return (
@@ -234,7 +223,6 @@ function DeteksiSuaraContent() {
         </p>
       </div>
 
-      {/* Step 1: Sumber suara */}
       <Card>
         <CardContent className="pt-5">
           <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-4 flex items-center gap-2">
@@ -282,7 +270,6 @@ function DeteksiSuaraContent() {
                       <X className="w-4 h-4" />
                     </Button>
                   </div>
-                  {/* Pemutar suara asli disembunyikan jika sudah di-crop agar user tidak bingung */}
                   {!croppedAudioBase64 && uploadPreviewUrl && (
                     <audio controls src={uploadPreviewUrl} className="w-full h-10" />
                   )}
@@ -318,7 +305,6 @@ function DeteksiSuaraContent() {
                       <X className="w-4 h-4" />
                     </Button>
                   </div>
-                  {/* Pemutar suara asli disembunyikan jika sudah di-crop */}
                   {!croppedAudioBase64 && recordPreviewUrl && (
                     <audio controls src={recordPreviewUrl} className="w-full h-10" />
                   )}
@@ -329,7 +315,6 @@ function DeteksiSuaraContent() {
         </CardContent>
       </Card>
 
-      {/* Step 2: Pilih algoritma */}
       <Card className={cn("transition-opacity", (!hasAudio || croppedAudioBase64) && "opacity-40 pointer-events-none")}>
         <CardContent className="pt-5">
           <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-4 flex items-center gap-2">
@@ -356,10 +341,6 @@ function DeteksiSuaraContent() {
           </div>
         </CardContent>
       </Card>
-
-      {/* ====================================================== */}
-      {/* TOMBOL LOGIKA BERCABANG (CROP vs DETEKSI)              */}
-      {/* ====================================================== */}
       
       {!croppedAudioBase64 ? (
         <div className="flex justify-end">
@@ -373,7 +354,6 @@ function DeteksiSuaraContent() {
         </div>
       ) : (
         <div className="animate-in fade-in slide-in-from-bottom-4 space-y-6">
-          {/* Step 3: Card Validasi */}
           <Card className="border-primary shadow-sm bg-primary/5">
             <CardContent className="pt-5">
               <p className="text-xs font-medium text-primary uppercase tracking-wider mb-4 flex items-center gap-2">
@@ -389,7 +369,6 @@ function DeteksiSuaraContent() {
             </CardContent>
           </Card>
 
-          {/* Tombol Deteksi AI */}
           <div className="flex justify-end">
             <Button 
               size="lg" 
@@ -407,12 +386,10 @@ function DeteksiSuaraContent() {
         </div>
       )}
 
-      {/* Animasi Layering */}
       {showLayerAnimation && (
         <LayerAnimation algoType={selectedAlgo} onComplete={handleAnimationComplete} />
       )}
 
-      {/* Efek Loading Dramatis Setelah Animasi */}
       {isProcessingResult && (
         <div className="mt-8 py-10 flex flex-col items-center justify-center space-y-4 animate-in fade-in">
           <Loader2 className="w-8 h-8 animate-spin text-primary" />
@@ -420,7 +397,6 @@ function DeteksiSuaraContent() {
         </div>
       )}
 
-      {/* Error */}
       {errorMsg && (
         <div className="bg-destructive/10 text-destructive text-sm p-4 rounded-xl border border-destructive/20 flex items-center gap-3 animate-in fade-in mt-6">
           <AlertTriangle className="w-5 h-5 shrink-0" />
@@ -428,7 +404,6 @@ function DeteksiSuaraContent() {
         </div>
       )}
 
-      {/* 🌟 POPUP CANTIK (DIALOG SHADCN) 🌟 */}
       <Dialog open={showSuccessDialog} onOpenChange={setShowSuccessDialog}>
         <DialogContent className="sm:max-w-md text-center flex flex-col items-center pt-10 pb-8 px-6">
           <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mb-4">

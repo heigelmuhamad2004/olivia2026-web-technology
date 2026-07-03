@@ -7,15 +7,21 @@ from app.model.skrining import Skrining
 class MetricsEvaluationService:
     @staticmethod
     def calculate_global_metrics():
+        """
+        Fungsi ini menghitung evaluasi metrik (MAE, MSE, RMSE) dari seluruh data pengujian.
+        Rumus RMSE: Akar dari (Rata-rata Kuadrat Selisih)
+        Rumus MAE: Rata-rata dari (Nilai Absolut Selisih)
+        """
         try:
             # 1. Tarik HANYA data skrining yang sudah diuji AI (memiliki detail_matematika)
             skrinings = Skrining.query.filter(Skrining.detail_matematika != None).all()
 
-            total_diuji = 0
+            total_diuji = 0  # Ini adalah variabel 'n' (Total jumlah data)
             total_suspek = 0
 
-            cnn_abs_errors = []
-            cnn_sq_errors = []
+            # Keranjang untuk mengumpulkan Error per baris data
+            cnn_abs_errors = []  # Menampung nilai absolut untuk perhitungan MAE
+            cnn_sq_errors = []   # Menampung nilai kuadrat untuk perhitungan RMSE
             
             dense_abs_errors = []
             dense_sq_errors = []
@@ -31,35 +37,52 @@ class MetricsEvaluationService:
 
                 total_diuji += 1
 
-                # Kunci Jawaban Asli (Ground Truth)
+                # ==============================================================
+                # TAHAP 1: MENENTUKAN NILAI AKTUAL (GROUND TRUTH / y_i)
+                # ==============================================================
                 is_suspek = 'terduga' in sk.hasil_deteksi.lower()
                 if is_suspek:
                     total_suspek += 1
                     
+                # y_i = 100 jika Terduga TBC, 0 jika Sehat
                 y_true = 100.0 if is_suspek else 0.0
 
-                # Hitung Error CNN
+                # ==============================================================
+                # TAHAP 2: HITUNG ERROR UNTUK MODEL CNN
+                # ==============================================================
+                # y_topi (y_prediksi) dari keluaran model AI
                 cnn_prob = data['cnn'].get('probabilitas', 0.0)
+                
+                # MAE Error: | y_i - y_topi | (Selisih mutlak tanpa minus)
                 cnn_abs = abs(y_true - cnn_prob)
+                
+                # RMSE Error: (y_i - y_topi)^2 (Selisih dikuadratkan)
                 cnn_sq = (y_true - cnn_prob) ** 2
                 
+                # Simpan error pasien ini ke keranjang (untuk dijumlahkan nanti)
                 cnn_abs_errors.append(cnn_abs)
                 cnn_sq_errors.append(cnn_sq)
 
-                # Hitung Error DenseNet
+                # ==============================================================
+                # TAHAP 3: HITUNG ERROR UNTUK MODEL DENSENET
+                # ==============================================================
                 dense_prob = data['densenet'].get('probabilitas', 0.0)
+                
                 dense_abs = abs(y_true - dense_prob)
                 dense_sq = (y_true - dense_prob) ** 2
                 
                 dense_abs_errors.append(dense_abs)
                 dense_sq_errors.append(dense_sq)
 
+                # ==============================================================
+                # TAHAP 4: MENCATAT ANOMALI (KESALAHAN FATAL)
+                # ==============================================================
                 # Dapatkan Nama Pasien
                 nama_pasien = f"Pasien ID: {sk.pasien_id}" 
                 if hasattr(sk, 'pasien') and sk.pasien:
                     nama_pasien = sk.pasien.nama
 
-                # Deteksi Anomali (Meleset di atas 50%)
+                # Deteksi Anomali jika tebakan meleset lebih dari 50%
                 if cnn_abs > 50.0:
                     anomalies.append({
                         "id": int(f"10{sk.id}"),
@@ -83,12 +106,22 @@ class MetricsEvaluationService:
             # Urutkan Anomali dari error tertinggi ke terendah, ambil maksimal 10 data
             anomalies = sorted(anomalies, key=lambda x: x['error_margin'], reverse=True)[:10]
 
-            # Lakukan Perhitungan Rata-Rata
-            if total_diuji > 0:
+            # ==============================================================
+            # TAHAP 5: PERHITUNGAN FINAL METRIK (RATA-RATA & AKAR)
+            # ==============================================================
+            if total_diuji > 0: # Pastikan n > 0 agar tidak error pembagian nol
+                
+                # --- FINALISASI CNN ---
+                # Rumus MAE: (Sigma Error Absolut) dibagi (n)
                 cnn_mae = sum(cnn_abs_errors) / total_diuji
+                
+                # Rumus MSE: (Sigma Error Kuadrat) dibagi (n)
                 cnn_mse = sum(cnn_sq_errors) / total_diuji
+                
+                # Rumus RMSE: Akar Kuadrat dari MSE 
                 cnn_rmse = math.sqrt(cnn_mse)
 
+                # --- FINALISASI DENSENET ---
                 dense_mae = sum(dense_abs_errors) / total_diuji
                 dense_mse = sum(dense_sq_errors) / total_diuji
                 dense_rmse = math.sqrt(dense_mse)

@@ -138,9 +138,6 @@ def process_audio_detect():
         else:
             status_akhir = "NORMAL"
 
-        # =========================================================
-        # 5. PROSES TIMPA (REPLACE) DATA DI DATABASE
-        # =========================================================
         skrining.hasil_deteksi = status_akhir 
         skrining.metode_skrining = f"Hybrid Fusion (RF + {model_type.upper()})"
         skrining.skor_suara_ai = prob_audio_persen 

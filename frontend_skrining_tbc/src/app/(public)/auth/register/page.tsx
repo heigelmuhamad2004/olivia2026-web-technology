@@ -17,6 +17,7 @@ import Link from "next/link"
 import { useRouter } from "next/navigation" // Gunakan useRouter
 import { useForm } from "react-hook-form"
 import { z } from "zod"
+import { toast } from "sonner"
 
 // Ganti fullName menjadi nama agar sesuai dengan backend
 const formSchema = z
@@ -48,12 +49,15 @@ const SignUp02Page = () => {
     try {
       const { confirmPassword, ...registerData } = data
       const result = await registerUser(registerData)
-      console.log("Registrasi berhasil:", result)
-      alert("Registrasi berhasil! Silakan login.")
-      router.push("/auth/login") // Arahkan ke halaman login
+      toast.success("Registrasi berhasil! Anda akan diarahkan ke halaman login.")
+
+      // Beri jeda agar pengguna bisa membaca notifikasi toast
+      setTimeout(() => {
+        router.push("/auth/login")
+      }, 1500)
     } catch (error) {
       console.error("Terjadi kesalahan saat registrasi", error)
-      alert("Registrasi gagal. Coba lagi.")
+      toast.error("Registrasi gagal. Email mungkin sudah terdaftar.")
     }
   }
 

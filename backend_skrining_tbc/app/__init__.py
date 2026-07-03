@@ -5,9 +5,6 @@ from flask_migrate import Migrate
 from flask_cors import CORS
 from flask_jwt_extended import JWTManager
 
-
-
-
 # Inisialisasi aplikasi Flask, database, dan migrasi
 app = Flask(__name__)
 app.config.from_object(Config)
@@ -16,6 +13,7 @@ migrate = Migrate(app, db)
 jwt = JWTManager (app)
 print("Loaded DB URI:", app.config["SQLALCHEMY_DATABASE_URI"])
 CORS(app)
+
 from app.model import provinsi
 from app.model import kabupaten
 from app.model import kecamatan

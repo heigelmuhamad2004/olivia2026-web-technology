@@ -340,7 +340,7 @@ export default function UserDashboardPage() {
                 iconVariant="outline"
                 title="Kelola Pasien."
                 description="Tambah dan kelola data anggota keluarga."
-                href="/user/pasien"
+                href="/user/data-screening"
               />
             </div>
           </div>
@@ -508,7 +508,7 @@ export default function UserDashboardPage() {
                   Silakan tambah pasien terlebih dahulu.
                 </p>
                 <Link
-                  href="/user/pasien"
+                  href="/user/screening-data"
                   onClick={() => setIsPatientModalOpen(false)}
                   className="mt-4 inline-flex items-center gap-1.5 rounded-full bg-primary px-4 py-2 text-[12px] font-medium text-primary-foreground"
                 >

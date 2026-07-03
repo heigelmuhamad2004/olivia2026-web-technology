@@ -20,8 +20,7 @@ export const createSkrining = async (formData: FormValues, pasienId: string) => 
       "Content-Type": "application/json",
     },
   })
-  // PERBAIKAN: Langsung kembalikan isi 'data' agar result.id di halaman UI bisa langsung terbaca
-  return res.data.data
+  return res.data
 }
 
 export const getSkrining = async () => {

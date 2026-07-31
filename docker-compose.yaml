@@ -5,7 +5,7 @@ services:
     restart: unless-stopped
     environment:
       MYSQL_ALLOW_EMPTY_PASSWORD: 'yes'
-      MYSQL_DATABASE: db_tbcheckv2
+      MYSQL_DATABASE: db_tbcheckv3
     ports:
       - "3306:3306"
     volumes:
@@ -34,8 +34,10 @@ services:
     #   - ./backend_skrining_tbc:/app  <-- Dimatikan agar tidak menimpa file Docker
     environment:
       - FLASK_ENV=production
-      - PYTHONUNBUFFERED=1           # <-- Ditambahkan agar log langsung muncul
+      - PYTHONUNBUFFERED=1   
+              # <-- Ditambahkan agar log langsung muncul
       - ENCRYPTION_KEY=rahasia-kunci-enkripsi-tbc-2026!
+      - AES_SECRET_KEY=SkripsiAman12345
     depends_on:
       - db
 

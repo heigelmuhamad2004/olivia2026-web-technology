@@ -20,6 +20,20 @@ export const loginUser = async (data: LoginData) => {
     const userId = String(response.data.id)
     localStorage.setItem(`accessToken:${userId}`, response.data.access_token)
     localStorage.setItem("activeSessionId", userId)
+
+    // Logika Pengalihan Halaman Berdasarkan Role
+    const role = response.data.role
+    if (role === "super_admin") {
+      window.location.href = "/dashboard-super-admin"
+    } else if (role === "admin_dinkes") {
+      window.location.href = "/dashboard-admin-dinkes"
+    } else if (role === "admin_puskesmas") {
+      // Asumsi path untuk admin puskesmas
+      window.location.href = "/dashboard-admin-puskesmas"
+    } else {
+      // Default untuk role 'user'
+      window.location.href = "/user"
+    }
   }
 
   return response.data
@@ -61,6 +75,7 @@ export const logoutUser = async (sessionId?: string) => {
         localStorage.setItem("activeSessionId", nextId)
       } else {
         localStorage.removeItem("activeSessionId")
+        
       }
     }
   }

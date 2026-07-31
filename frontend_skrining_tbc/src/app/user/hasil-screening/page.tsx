@@ -246,7 +246,12 @@ function HasilScreeningContent() {
   }
 
   const data = hasilScreening as SkriningRiwayatExtended
-  const isPositif = data.hasil_screening.toLowerCase().includes("terduga")
+  const statusDeteksi = (data.hasil_screening || "").toUpperCase();
+  const isPositif = (
+    (statusDeteksi.includes("TERDUGA") || statusDeteksi.includes("SUSPEK") || statusDeteksi.includes("POSITIF")) 
+    && !statusDeteksi.includes("TIDAK") 
+    && !statusDeteksi.includes("BUKAN")
+  );
   const isHybrid = (data.metode_skrining || "").toLowerCase().includes("hybrid")
   const math = data.detail_matematika
   const fusion = math?.fusion_details
@@ -340,12 +345,14 @@ function HasilScreeningContent() {
               </div>
             </div>
 
+            {/* Bagian skor probabilitas TBC    
             <div className="text-right shrink-0">
               <p className="text-[32px] font-semibold tracking-[-1.2px] text-[#7928ca] leading-none">
                 {skorTBC.toFixed(1)}%
               </p>
               <p className="text-[11px] text-[#888888] mt-1">probabilitas TBC</p>
             </div>
+             */}
           </motion.div>
 
           {isPositif && (
@@ -423,7 +430,7 @@ function HasilScreeningContent() {
             </div>
           </motion.div>
         </div>
-
+        {/* Bagian ini hanya muncul jika metode skrining adalah hybrid dan ada data fusion         
         {isHybrid && fusion && (
           <motion.div
             variants={item}
@@ -470,7 +477,7 @@ function HasilScreeningContent() {
             </div>
           </motion.div>
         )}
-
+        */ }
         {aiData ? (
           <motion.div
             variants={item}
@@ -485,7 +492,7 @@ function HasilScreeningContent() {
                   Bukti analisis spektrogram suara batuk
                 </p>
                 <p className="text-[12px] text-[#888888]">
-                  Diekstraksi menggunakan {aiData.algoritma} + Grad-CAM
+                  Diekstraksi menggunakan {aiData.algoritma}
                 </p>
               </div>
             </div>

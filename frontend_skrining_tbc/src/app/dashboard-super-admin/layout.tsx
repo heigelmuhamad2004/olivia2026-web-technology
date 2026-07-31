@@ -1,9 +1,9 @@
 "use client"
 
-import React, { useEffect, useState } from "react"
+import React, { useEffect } from "react"
 import { useRouter } from "next/navigation"
-import { Loader2 } from "lucide-react"
-import { getCurrentUser } from "@/app/services/auth.services"
+import { Loader2 } from "lucide-react";
+import { useAuth } from "@/app/services/useAuth"; // <-- Ganti ke useAuth
 import { AppSidebar } from "@/components/app-sidebar-superadmin"
 import { SiteHeader } from "@/components/site-header-superadmin"
 import {
@@ -11,52 +11,34 @@ import {
   SidebarProvider,
 } from "@/components/ui/sidebar"
 
-// Tipe data untuk user
-interface UserData {
-  nama: string
-  email: string
-  role: string
-}
-
 export default function DashboardAdminLayout({
   children,
 }: {
   children: React.ReactNode
 }) {
-  const [user, setUser] = useState<UserData | null>(null)
-  const [isLoading, setIsLoading] = useState(true)
+  const { user, loading } = useAuth();
   const router = useRouter()
 
   useEffect(() => {
-    const fetchUser = async () => {
-      try {
-        const userData = await getCurrentUser()
-        if (userData.role !== "super_admin") {
-          window.location.href = "/auth/login"
-          return
-        }
-        setUser(userData)
-      } catch (error) {
-        window.location.href = "/auth/login"
-      } finally {
-        setIsLoading(false)
-      }
+    // Jika loading selesai dan tidak ada user, atau role-nya bukan super_admin
+    if (!loading && (!user || user.role !== "super_admin")) {
+      // Redirect ke halaman login
+      router.push("/auth/login");
     }
+  }, [user, loading, router]);
 
-    fetchUser()
-  }, [router])
-
-  if (isLoading) {
+  // Tampilkan loading spinner HANYA saat loading, atau jika user tidak valid (sebelum redirect)
+  if (loading || !user || user.role !== "super_admin") {
     return (
       <div className="flex h-screen w-full items-center justify-center bg-background">
         <div className="flex items-center gap-3 text-[12px] font-mono uppercase tracking-wider text-muted-foreground">
           <Loader2 className="size-4 animate-spin text-primary" />
-          Memuat Dashboard...
+          Memverifikasi akses...
         </div>
       </div>
-    )
+    );
   }
-
+  
   return (
     <SidebarProvider
       style={
@@ -66,7 +48,6 @@ export default function DashboardAdminLayout({
         } as React.CSSProperties
       }
     >
-      {/* PERBAIKAN: Teruskan data 'user' ke AppSidebar */}
       <AppSidebar variant="sidebar" user={user} />
       <SidebarInset className="bg-background">
         <SiteHeader />

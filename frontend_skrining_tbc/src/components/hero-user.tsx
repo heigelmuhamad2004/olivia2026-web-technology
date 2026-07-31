@@ -21,7 +21,14 @@ export default function DashboardHero({
   lastSkriningResult,
   onStartScreening,
 }: DashboardHeroProps) {
-  const isPositif = lastSkriningResult?.toLowerCase().includes("terduga") || lastSkriningResult?.toLowerCase().includes("suspek") || lastSkriningResult?.toLowerCase().includes("positif");
+  
+  // 🛡️ PERBAIKAN LOGIKA STATUS WARNA
+  const statusDeteksi = (lastSkriningResult || "").toLowerCase();
+  const isPositif = (
+    (statusDeteksi.includes("terduga") || statusDeteksi.includes("suspek") || statusDeteksi.includes("positif"))
+    && !statusDeteksi.includes("tidak")
+    && !statusDeteksi.includes("bukan")
+  );
 
   return (
     <section
@@ -42,17 +49,6 @@ export default function DashboardHero({
           className="absolute -bottom-[50%] left-[20%] w-[60%] h-[120%] rounded-full opacity-[0.15] blur-3xl mix-blend-normal dark:mix-blend-screen"
           style={{ background: "radial-gradient(circle, #f9cb28 0%, transparent 60%)" }}
         />
-      </div>
-
-      {/* ── Eyebrow badge ── */}
-      <div className="relative z-10 mb-5 inline-flex items-center gap-1.5 rounded-full border border-border bg-muted/50 px-3 py-1 animate-in fade-in slide-in-from-bottom-2 duration-500">
-        <span
-          aria-hidden="true"
-          className="h-1.5 w-1.5 rounded-full bg-primary animate-pulse"
-        />
-        <span className="font-mono text-[11px] font-medium uppercase tracking-[0.06em] text-foreground">
-          Dashboard Pengguna
-        </span>
       </div>
 
       {/* ── Heading ── */}

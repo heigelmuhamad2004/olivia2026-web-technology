@@ -2,13 +2,12 @@ import api from "./api"
 import { getActiveToken } from "./auth.services"
 import type { FormValues } from "@/app/user/screening-kesehatan/page"
 
-export const createSkrining = async (formData: FormValues, pasienId: string) => {
+export const createSkrining = async (formData: FormValues, pasienId: string | number) => {
   const token = getActiveToken()
   if (!token) {
     throw new Error("Tidak ada token otorisasi. Silakan login kembali.")
   }
 
-  // normalisasi payload jika perlu (mis. ubah semua enum/checkbox ke string)
   const payload = {
     ...formData,
     pasien_id: pasienId,
@@ -29,7 +28,6 @@ export const getSkrining = async () => {
   const res = await api.get("/skrining", {
     headers: { Authorization: `Bearer ${token}` },
   })
-  // backend mengembalikan { data: [...] } atau langsung [...]
   return (res.data && (res.data.data ?? res.data)) || []
 }
 
@@ -45,7 +43,8 @@ export const getSkriningStatistik = async () => {
 }
 
 export interface SkriningRiwayat {
-  id: number
+  id: string | number          // 🛡️ Menerima string (Hashids)
+  pasien_id?: string | number
   nama: string
   nik: string
   no_hp: string
@@ -76,14 +75,15 @@ export interface SkriningRiwayat {
   berkeringat_malam_tanpa_kegiatan: string
   sesak_napas_tanpa_nyeri_dada: string
   ada_pembesaran_getah_bening_dileher: string
-  skor_suara_ai?: number | null
+  skor_form_ai?: number | null       
+  skor_suara_ai?: number | null      
   metode_skrining?: string
   gradcam_image?: string | null
   detail_matematika?: any;
 }
 
 export const getRiwayatSkriningByPasien = async (
-  pasienId: string
+  pasienId: string | number
 ): Promise<SkriningRiwayat[]> => {
   const token = getActiveToken()
   if (!token) throw new Error("No active session token")
@@ -95,7 +95,7 @@ export const getRiwayatSkriningByPasien = async (
   return res.data.data as SkriningRiwayat[]
 }
 
-export const getSkriningDetail = async (id: number | string): Promise<SkriningRiwayat> => {
+export const getSkriningDetail = async (id: string | number): Promise<SkriningRiwayat> => {
   const token = getActiveToken()
   if (!token) throw new Error("Unauthorized")
 

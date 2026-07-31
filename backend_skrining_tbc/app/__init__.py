@@ -29,9 +29,15 @@ from app.routes import *
 
 from app.model.token_block_list import TokenBlocklist
 
+# PENTING: Fungsi ini memberi tahu flask-jwt-extended cara memuat user dari DB
+# setiap kali endpoint yang dilindungi diakses.
+@jwt.user_lookup_loader
+def user_lookup_loader(_jwt_header, jwt_data):
+    identity = jwt_data["sub"]
+    return user.User.query.get(identity)
+
 @jwt.token_in_blocklist_loader
 def check_if_token_revoked(jwt_header, jwt_payload):
     jti = jwt_payload["jti"]
     token = TokenBlocklist.query.filter_by(jti=jti).first()
     return token is not None  # True = token sudah diblokir
-

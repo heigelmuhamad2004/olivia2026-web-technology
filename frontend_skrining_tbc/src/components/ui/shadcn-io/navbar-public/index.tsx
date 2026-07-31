@@ -5,7 +5,8 @@ import { useEffect, useState, useRef } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
-import { BookOpenIcon, InfoIcon, LifeBuoyIcon } from 'lucide-react';
+// 🛡️ PERBAIKAN 1: Tambahkan icon User dan LogOut di sini
+import { BookOpenIcon, InfoIcon, LifeBuoyIcon, User, LogOut } from 'lucide-react';
 import { logoutUser } from '@/app/services/auth.services';
 import { Button } from '@/components/ui/button';
 import {
@@ -349,20 +350,29 @@ export const Navbar02 = React.forwardRef<HTMLElement, Navbar02Props>(
               )}
             </div>
           </div>
-          {/* Right side */}
-          <div className="flex items-center gap-3">
-            <Link href="/user/profil">
-          <Button variant="ghost" size="sm" className="rounded-full text-muted-foreground hover:text-foreground font-medium">
-                Profil Saya
-              </Button>
-            </Link>
+          
+          {/* 🛡️ PERBAIKAN 2: Right side (UI Profil & Logout Baru) */}
+          <div className="flex items-center gap-1.5 sm:gap-3">
+            <Button 
+              asChild 
+              variant="ghost" 
+              size="sm" 
+              className="rounded-full text-muted-foreground hover:text-primary hover:bg-primary/10 font-medium gap-2 transition-colors px-3 sm:px-4"
+            >
+              <Link href="/user/profil">
+                <User className="h-4 w-4" />
+                <span className="hidden sm:inline">Profil</span>
+              </Link>
+            </Button>
 
             <Button
+              variant="outline"
               size="sm"
-          className="px-4 rounded-full font-medium"
+              className="rounded-full font-medium gap-2 text-muted-foreground border-border hover:text-destructive hover:border-destructive hover:bg-destructive/10 transition-colors px-3 sm:px-4"
               onClick={handleLogout}
             >
-              Logout
+              <LogOut className="h-4 w-4" />
+              <span className="hidden sm:inline">Logout</span>
             </Button>
           </div>
 

@@ -1,12 +1,29 @@
 import api from "./api"
 import { getActiveToken } from "./auth.services"
 import { type FormValues as CreatePatientFormValues } from "../user/screening-data/page"
-import { isAxiosError } from "axios" // 🌟 TAMBAHKAN INI
+import { isAxiosError } from "axios"
+import CryptoJS from "crypto-js" // Import library pembuka gembok
 
-// Tipe data untuk pasien yang diterima dari API
+const rawKey = process.env.NEXT_PUBLIC_AES_SECRET_KEY || "KunciCadangan123";
+const SECRET_KEY = CryptoJS.enc.Utf8.parse(rawKey.substring(0, 16));
+
+// FUNGSI UNTUK MEMBUKA GEMBOK
+const decryptData = (encryptedText?: string) => {
+    if (!encryptedText || encryptedText === "-") return encryptedText;
+    try {
+        const decrypted = CryptoJS.AES.decrypt(encryptedText, SECRET_KEY, {
+            mode: CryptoJS.mode.ECB,
+        });
+        const originalText = decrypted.toString(CryptoJS.enc.Utf8);
+        return originalText || encryptedText; // Jika gagal (string kosong), kembalikan aslinya
+    } catch (e) {
+        return encryptedText; 
+    }
+};
+
 export interface Patient {
-  id: number
-  user_id: number
+  id: string | number
+  user_id: string | number
   kecamatan_id: number
   nama: string
   nik: string
@@ -22,7 +39,6 @@ export interface Patient {
   total_screening?: number
 }
 
-// Tipe data untuk memperbarui pasien (cocok dengan form edit)
 export interface UpdatePatientData {
   nama: string
   nik: string
@@ -40,7 +56,15 @@ export const getMyPatients = async (): Promise<Patient[]> => {
     const response = await api.get("/pasien", {
       headers: { Authorization: `Bearer ${token}` },
     })
-    return response.data.data
+    
+    // 🛡️ BUKA GEMBOK ALAMAT DAN NO HP SEBELUM MASUK KE TABEL
+    const decryptedData = response.data.data.map((pasien: any) => ({
+        ...pasien,
+        alamat: decryptData(pasien.alamat),
+        no_hp: decryptData(pasien.no_hp)
+    }));
+
+    return decryptedData;
   } catch (error) {
     console.error("Gagal mengambil data pasien:", error)
     return []
@@ -69,9 +93,15 @@ export const createPatient = async (formData: CreatePatientFormValues) => {
         "Content-Type": "application/json",
       },
     })
+    
+    // Buka gembok data yang baru di-create
+    if (response.data && response.data.data) {
+        response.data.data.alamat = decryptData(response.data.data.alamat);
+        response.data.data.no_hp = decryptData(response.data.data.no_hp);
+    }
+    
     return response.data
   } catch (error) {
-    // 🌟 PERBAIKAN TANGKAP ERROR FLASK
     if (isAxiosError(error) && error.response) {
       throw new Error(error.response.data.message || "Gagal menambahkan pasien");
     }
@@ -79,16 +109,22 @@ export const createPatient = async (formData: CreatePatientFormValues) => {
   }
 }
 
-export const updatePatient = async (patientId: number, formData: UpdatePatientData) => {
+export const updatePatient = async (patientId: string | number, formData: UpdatePatientData) => {
   try {
     const token = getActiveToken()
     if (!token) throw new Error("No active session token")
     const response = await api.put(`/pasien/edit/${patientId}`, formData, {
       headers: { Authorization: `Bearer ${token}` },
     })
+    
+    // Buka gembok data yang baru di-update
+    if (response.data && response.data.data) {
+        response.data.data.alamat = decryptData(response.data.data.alamat);
+        response.data.data.no_hp = decryptData(response.data.data.no_hp);
+    }
+    
     return response.data
   } catch (error) {
-    // 🌟 PERBAIKAN TANGKAP ERROR FLASK
     if (isAxiosError(error) && error.response) {
       throw new Error(error.response.data.message || "Gagal memperbarui pasien");
     }
@@ -96,7 +132,7 @@ export const updatePatient = async (patientId: number, formData: UpdatePatientDa
   }
 }
 
-export const deletePatient = async (patientId: number) => {
+export const deletePatient = async (patientId: string | number) => {
   try {
     const token = getActiveToken()
     if (!token) throw new Error("No active session token")
@@ -105,9 +141,7 @@ export const deletePatient = async (patientId: number) => {
     })
     return response.data
   } catch (error) {
-    // 🌟 PERBAIKAN TANGKAP ERROR FLASK
     if (isAxiosError(error) && error.response) {
-      // Ini akan membaca pesan "Pasien yang sudah melakukan skrining tidak bisa dihapus..."
       throw new Error(error.response.data.message || "Gagal menghapus pasien");
     }
     throw new Error("Terjadi kesalahan pada sistem");

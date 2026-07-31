@@ -51,6 +51,11 @@ const navData = {
       icon: IconUserPlus,
     },
     {
+      title: "Tambah Admin Dinkes",
+      url: "/dashboard-super-admin/tambah-admin-dinkes",
+      icon: IconUserPlus,
+    },
+    {
       title: "Metrics",
       url: "/dashboard-super-admin/dashboard-metrics",
       icon: IconChartBar,

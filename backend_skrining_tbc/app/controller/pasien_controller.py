@@ -1,9 +1,28 @@
+import os
+import base64
+from Crypto.Cipher import AES
+from Crypto.Util.Padding import pad
 from flask import request
 from flask_jwt_extended import jwt_required, get_jwt
 from app import response, db, app
 from app.model.pasien import Pasien, JenisKelamin
 from app.model.skrining import Skrining
 from datetime import datetime, date
+
+raw_key = os.environ.get("AES_SECRET_KEY", "KunciCadangan123")
+SECRET_KEY = raw_key[:16].encode('utf-8')
+
+def encrypt_data(raw_text):
+    """Fungsi untuk menggembok teks (Alamat / No HP)"""
+    if not raw_text:
+        return raw_text
+    try:
+        cipher = AES.new(SECRET_KEY, AES.MODE_ECB)
+        encrypted_bytes = cipher.encrypt(pad(str(raw_text).encode('utf-8'), AES.block_size))
+        return base64.b64encode(encrypted_bytes).decode('utf-8')
+    except Exception as e:
+        print(f"Error Encryption: {e}")
+        return raw_text
 
 @jwt_required()
 def create_pasien():
@@ -13,18 +32,15 @@ def create_pasien():
 
         data = request.get_json() or {}
         
-        # 1. CEK DUPLIKASI NIK SECARA MANUAL (Metode Python Memory)
         nik_input = data.get("nik")
         if not nik_input:
             return response.bad_request([], "NIK wajib diisi")
             
-        # AMBIL SEMUA DATA, LALU COCOKKAN DI PYTHON
         semua_pasien = Pasien.query.all()
         for p in semua_pasien:
-            if p.nik == nik_input: # Saat dipanggil p.nik, otomatis didekripsi
+            if p.nik == nik_input:
                 return response.bad_request([], "NIK tersebut sudah terdaftar di sistem")
 
-        # 2. NORMALISASI JENIS KELAMIN
         jenis_raw = data.get("jenis_kelamin")
         if jenis_raw in ("L", "P"):
             jenis_map = {"L": "Laki-Laki", "P": "Perempuan"}
@@ -37,7 +53,6 @@ def create_pasien():
         except Exception as ve:
             return response.bad_request([], "Jenis kelamin tidak valid. Pilih 'Laki-Laki' atau 'Perempuan'")
 
-        # 3. PARSE TANGGAL LAHIR
         tgl = data.get("tanggal_lahir")
         tanggal_obj = None
         if isinstance(tgl, str):
@@ -53,12 +68,11 @@ def create_pasien():
         else:
             return response.bad_request([], "tanggal_lahir wajib diisi")
 
-        # 4. SIMPAN PASIEN BARU
         pasien = Pasien(
             user_id=user_id,
             kecamatan_id=data.get("kecamatan_id"),
             nama=data.get("nama"),
-            nik=nik_input, # <-- NIK Masuk, otomatis dienkripsi oleh model
+            nik=nik_input, 
             alamat=data.get("alamat"),
             tanggal_lahir=tanggal_obj,
             usia=data.get("usia"),
@@ -89,7 +103,7 @@ def index():
             pasien = Pasien.query.all()
         elif role == "admin_puskesmas":
             pasien = Pasien.query.filter_by(kecamatan_id=kecamatan_id).all()
-        else:  # role == "user"
+        else:  
             pasien = Pasien.query.filter_by(user_id=user_id).all()
 
         data = format_array(pasien)
@@ -99,7 +113,7 @@ def index():
         print(e)
         return response.bad_request([], "Gagal mengambil data pasien")
     
-@jwt_required() # 🛡️ Tambahkan perlindungan JWT di sini
+@jwt_required()
 def get_by_id(id):  
     try:
         current_user = get_jwt()
@@ -111,7 +125,6 @@ def get_by_id(id):
         if not pasien:
             return response.bad_request([], "Pasien tidak ditemukan")
 
-        # 🛡️ BENTENG IDOR: Validasi Hak Akses
         if role == "user" and pasien.user_id != user_id:
             return response.bad_request([], "Akses Ditolak: Anda tidak memiliki hak akses ke data pasien ini")
         elif role == "admin_puskesmas" and pasien.kecamatan_id != kecamatan_id:
@@ -138,15 +151,13 @@ def edit_pasien(id):
 
         pasien = Pasien.query.get_or_404(id)
 
-        # 🛡️ BENTENG IDOR: Cegah user edit data orang lain
         if role == "user" and pasien.user_id != user_id:
             return response.bad_request([], "Akses Ditolak: Anda tidak dapat mengedit data pasien ini")
         elif role == "admin_puskesmas" and pasien.kecamatan_id != kecamatan_id:
             return response.bad_request([], "Akses Ditolak: Tidak dapat mengedit pasien dari Puskesmas lain")
 
-        # CEK DUPLIKASI NIK SAAT EDIT
         new_nik = data.get('nik')
-        if new_nik and new_nik != pasien.nik: # NIK pasien.nik akan didekripsi otomatis untuk perbandingan
+        if new_nik and '*' not in new_nik and new_nik != pasien.nik:
             semua_pasien = Pasien.query.all()
             for p in semua_pasien:
                 if p.nik == new_nik and p.id != pasien.id:
@@ -176,14 +187,13 @@ def edit_pasien(id):
         app.logger.error(f"Error saat mengedit pasien: {e}")
         return response.bad_request([], "Terjadi kesalahan internal saat mengedit pasien")
 
-@jwt_required() # 🛡️ Tambahkan perlindungan JWT di sini
+@jwt_required()
 def get_pasien_by_kecamatan(kecamatan_id):
     try:
         current_user = get_jwt()
         role = current_user.get("role")
         user_kecamatan_id = current_user.get("kecamatan_id")
 
-        # 🛡️ BENTENG IDOR
         if role == "admin_puskesmas" and int(kecamatan_id) != user_kecamatan_id:
             return response.bad_request([], "Akses Ditolak: Anda tidak diizinkan melihat data kecamatan lain")
 
@@ -206,19 +216,15 @@ def delete_pasien(id):
         if pasien is None:
             return response.bad_request([], "Pasien tidak ditemukan")
             
-        # 🛡️ BENTENG IDOR: Cek hak akses penghapusan
         if role == "user" and pasien.user_id != user_id:
             return response.bad_request([], "Akses Ditolak: Anda tidak dapat menghapus pasien ini")
         elif role == "admin_puskesmas" and pasien.kecamatan_id != kecamatan_id:
             return response.bad_request([], "Akses Ditolak: Tidak dapat menghapus pasien dari Puskesmas lain")
 
-        # KEMBALIKAN ATURAN REKAM MEDIS: Cek apakah ada data skrining
         skrining_terkait = Skrining.query.filter_by(pasien_id=id).first()
         if skrining_terkait:
-            # Tolak penghapusan dan kirim pesan ke Frontend
             return response.bad_request([], "Pasien yang sudah melakukan skrining tidak bisa dihapus karena riwayat medis tidak boleh hilang.")
             
-        # Jika belum ada skrining, boleh dihapus
         db.session.delete(pasien)
         db.session.commit()
         return response.success([], "Berhasil menghapus data pasien")
@@ -241,17 +247,26 @@ def single_object(data_pasien):
     elif isinstance(data_pasien.jenis_kelamin, str):
         jk_value = data_pasien.jenis_kelamin
 
+    nik_asli = str(data_pasien.nik) if data_pasien.nik else ""
+    if len(nik_asli) >= 16:
+        nik_sensor = nik_asli[:4] + "********" + nik_asli[-4:]
+    elif len(nik_asli) > 0:
+        nik_sensor = "******"
+    else:
+        nik_sensor = "-"
+
     data_dict = {
         "id": data_pasien.id,
         "user_id": data_pasien.user_id,
         "kecamatan_id": data_pasien.kecamatan_id,
         "nama": data_pasien.nama,
-        "nik": data_pasien.nik, # <-- SQLAlchemy otomatis mendekripsi ini jadi angka normal untuk ditampilkan
-        "alamat": data_pasien.alamat,
+        "nik": nik_sensor,
+        # 🛡️ ALAMAT DAN NO HP KITA GEMBOK (ENKRIPSI)
+        "alamat": encrypt_data(data_pasien.alamat),
+        "no_hp": encrypt_data(data_pasien.no_hp),
         "tanggal_lahir": data_pasien.tanggal_lahir.isoformat() if data_pasien.tanggal_lahir else None,
         "usia": data_pasien.usia,
         "jenis_kelamin": jk_value,
-        "no_hp": data_pasien.no_hp,
         "pekerjaan": data_pasien.pekerjaan,
     }
 

@@ -1,33 +1,13 @@
-import type { Metadata, Viewport } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import type { Metadata } from "next";
+import { Inter } from "next/font/google";
 import "./globals.css";
+import { AuthProvider } from "./services/useAuth"; // Pastikan path ini benar
 
-
-const geistSans = Geist({
-  variable: "--font-geist-sans",
-  subsets: ["latin"],
-});
-
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
-  subsets: ["latin"],
-});
+const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "TB Screening App",
-  description: "Aplikasi Skrining TB",
-  manifest: "/manifest.json",
-  icons: {
-    apple: "icon/TB_192.png",
-  },
-};
-
-export const viewport: Viewport = {
-  themeColor: "#2563eb",
-  width: "device-width",
-  initialScale: 1,
-  maximumScale: 1,
-  userScalable: false, // Agar tampilan seperti aplikasi native (tidak bisa di-zoom cubit)
+  title: "Skrining TBC App",
+  description: "Aplikasi untuk skrining Tuberkulosis",
 };
 
 export default function RootLayout({
@@ -37,8 +17,8 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
-        <main>{children}</main>
+      <body className={inter.className}>
+        <AuthProvider>{children}</AuthProvider>
       </body>
     </html>
   );

@@ -9,6 +9,7 @@ from app.controller import auth_controller
 from app.controller.auth_controller import auth_bp
 from flask import Blueprint, jsonify
 from flask_jwt_extended import jwt_required
+from flask import request, make_response
 
 # Import service yang baru kamu buat
 from app.services.metrics_evaluation import MetricsEvaluationService
@@ -16,6 +17,7 @@ from app.services.metrics_evaluation import MetricsEvaluationService
 from app.controller.user_controller import user_bp
 from app.controller import admin_puskesmas_controller
 from app.controller import benchmark_controller
+from app.controller import dinkes_controller # <-- Impor controller dinkes
 
 try:
     from app.model import user, pasien, kecamatan, skrining, token_block_list
@@ -66,7 +68,7 @@ def create_pasien():
 def get_pasien():
     return pasien_controller.index()
 
-@app.route('/pasien/<int:id>', methods=['GET'])
+@app.route('/pasien/<id>', methods=['GET'])
 def get_pasien_by_id(id):
     return pasien_controller.get_by_id(id)
 
@@ -169,7 +171,59 @@ def verify_rujukan_admin(id):
 def get_skrining_detail(id):
     return skrining_controller.get_skrining_detail(id)
 
+# =================================================
+# DINKES & SUPER ADMIN ROUTES (Manajemen Akun)
+# =================================================
+@app.route('/superadmin/register-dinkes', methods=['POST'])
+def register_admin_dinkes():
+    return dinkes_controller.register_admin_dinkes()
+
+@app.route('/dinkes/register-puskesmas', methods=['POST'])
+def register_admin_puskesmas_by_dinkes():
+    return dinkes_controller.register_admin_puskesmas_by_dinkes()
+
+@app.route('/dinkes/skrining', methods=['GET', 'OPTIONS'])
+def get_skrining_by_kabupaten():
+    # 1. Tangkap Preflight Request dari Browser
+    if request.method == "OPTIONS":
+        resp = make_response()
+        resp.headers.add("Access-Control-Allow-Origin", "*")
+        resp.headers.add("Access-Control-Allow-Headers", "Content-Type, Authorization")
+        resp.headers.add("Access-Control-Allow-Methods", "GET, OPTIONS")
+        return resp
+        
+    # 2. Eksekusi kode asli jika method GET
+    return dinkes_controller.get_skrining_by_kabupaten()
+
+@app.route('/dinkes/admin-puskesmas', methods=['GET', 'OPTIONS'])
+def get_admin_puskesmas_list():
+    # Tangkap Preflight Request untuk CORS
+    if request.method == "OPTIONS":
+        resp = make_response()
+        resp.headers.add("Access-Control-Allow-Origin", "*")
+        resp.headers.add("Access-Control-Allow-Headers", "Content-Type, Authorization")
+        resp.headers.add("Access-Control-Allow-Methods", "GET, OPTIONS")
+        return resp
+        
+    return dinkes_controller.get_admin_puskesmas_by_kabupaten()
+
+# Tambahkan rute ini di bagian bawah routes.py Anda
+
+@app.route('/dinkes/admin-puskesmas/<int:id>', methods=['PUT', 'DELETE', 'OPTIONS'])
+def manage_admin_puskesmas(id):
+    # Proteksi CORS Preflight
+    if request.method == "OPTIONS":
+        resp = make_response()
+        resp.headers.add("Access-Control-Allow-Origin", "*")
+        resp.headers.add("Access-Control-Allow-Headers", "Content-Type, Authorization")
+        resp.headers.add("Access-Control-Allow-Methods", "PUT, DELETE, OPTIONS")
+        return resp
+        
+    if request.method == 'PUT':
+        return dinkes_controller.update_admin_puskesmas(id)
+    elif request.method == 'DELETE':
+        return dinkes_controller.delete_admin_puskesmas(id)
+
 # Daftarkan Blueprint untuk user management dengan prefix /users
 app.register_blueprint(user_bp, url_prefix='/users')
 app.register_blueprint(auth_bp, url_prefix='/auth')
-

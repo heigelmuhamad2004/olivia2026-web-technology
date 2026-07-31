@@ -1,98 +1,112 @@
 # app/services/ai_service.py
+"""
+RF Service - dilatih pada CODA TB Clinical Meta Info (data klinis riil dari
+Synapse), BUKAN lagi tuberculosis_xray_dataset.csv (dataset sintetis yang
+terbukti tidak punya sinyal statistik apapun terhadap label - lihat catatan
+evaluasi di training script).
 
-import pandas as pd
+PERAN RF dalam sistem (revisi arsitektur):
+  RF MENGGANTIKAN Kriteria 1 form Kemenkes ("batuk saja cukup"). RF hanya
+  dipanggil KETIKA batuk = Ya (karena dataset training-nya berasal dari
+  kohort yang semuanya sudah batuk >=4 hari). RF menilai kombinasi
+  batuk + gejala tambahan + demografi untuk memutuskan probabilitas TBC,
+  alih-alih menganggap batuk sendirian otomatis cukup.
+
+  Kriteria 2 & 3 form Kemenkes TETAP rule-based murni (lihat
+  rule_based_service.py) karena field-nya (kontak erat, malnutrisi,
+  DM, ibu hamil, dst) tidak ada representasinya di dataset ini.
+
+Fitur yang dipakai (semua SUDAH ADA di skema DB, TIDAK perlu field baru):
+  age, sex, berat_badan, tinggi_badan, weight_loss, fever, night_sweats,
+  smoke_lweek (merokok), tb_prior (pernah terdiagnosis TBC)
+
+Fitur yang SENGAJA TIDAK dipakai walau signifikan secara statistik
+(hemoptysis, reported_cough_dur, heart_rate, temperature) karena tidak ada
+field-nya di form/DB saat ini dan disepakati untuk tidak menambah field baru.
+"""
+
 import os
-from sklearn.ensemble import RandomForestClassifier
-from sklearn.preprocessing import LabelEncoder
-from flask import current_app
+import joblib
+import pandas as pd
+
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))  # folder app/
+MODEL_PATH = os.path.join(BASE_DIR, 'ml_models', 'rf_model_coda.pkl')
+
 
 class AIService:
     _instance = None
-    model = None
-    rf_columns = []
+    artifact = None
 
     def __new__(cls):
-        # Singleton: Agar training hanya terjadi 1x saat aplikasi jalan
         if cls._instance is None:
             cls._instance = super(AIService, cls).__new__(cls)
-            cls._instance.train_model()
+            cls._instance.load_model()
         return cls._instance
 
-    def train_model(self):
+    def load_model(self):
         try:
-            #path dataset
-            base_dir = os.path.abspath(os.path.dirname(__file__)) # folder services
-            app_dir = os.path.dirname(base_dir) # folder app
-            dataset_path = os.path.join(app_dir, 'ml_models', 'tuberculosis_xray_dataset.csv')
-            
-            print(f"Training AI Model dari: {dataset_path} ...")
-            df = pd.read_csv(dataset_path)
-
-            # --- Preprocessing ---
-            # Mapping manual untuk kolom ordinal
-            maps = {
-                'Fever': {'Mild': 0, 'Moderate': 1, 'High': 2},
-                'Sputum_Production': {'Low': 0, 'Medium': 1, 'High': 2},
-                'Smoking_History': {'Never': 0, 'Former': 1, 'Current': 2}
-            }
-            for col, mapping in maps.items():
-                if col in df.columns:
-                    df[col] = df[col].map(mapping).fillna(0)
-
-            # Label Encoder untuk kolom kategori
-            categorical_cols = ['Gender', 'Chest_Pain', 'Night_Sweats', 'Blood_in_Sputum', 'Previous_TB_History', 'Class']
-            for col in categorical_cols:
-                if col in df.columns:
-                    le = LabelEncoder()
-                    df[col] = le.fit_transform(df[col].astype(str))
-
-            # Training
-            X = df.drop(['Class', 'Patient_ID'], axis=1, errors='ignore')
-            y = df['Class']
-            self.rf_columns = X.columns.tolist() # Simpan urutan kolom
-
-            self.model = RandomForestClassifier(n_estimators=100, random_state=42, class_weight='balanced')
-            self.model.fit(X, y)
-            print("Model AI Random Forest Siap!")
-            
+            self.artifact = joblib.load(MODEL_PATH)
+            print(
+                f"Model RF (CODA TB) berhasil dimuat. "
+                f"AUROC test={self.artifact['auroc_test']:.4f}, "
+                f"threshold={self.artifact['threshold']:.4f}, "
+                f"sensitivitas={self.artifact['sensitivity_test']:.4f}, "
+                f"spesifisitas={self.artifact['specificity_test']:.4f}"
+            )
         except Exception as e:
-            print(f"Error Training AI: {e}")
+            print(f"GAGAL memuat model RF dari {MODEL_PATH}: {e}")
+            self.artifact = None
 
-    def predict(self, form_data):
-        if not self.model:
+    @staticmethod
+    def _is_yes(val):
+        if val is None:
+            return False
+        return str(val).strip().lower() in ['ya', 'iya', 'true', '1', 'yes']
+
+    def predict(self, form_data: dict):
+        """
+        form_data diharapkan berisi (nama field bebas, di-passing dari
+        skrining_services.py):
+          usia, jenis_kelamin, berat_badan, tinggi_badan,
+          bb_turun, demam, keringat_malam, merokok, pernah_terdiagnosis_tbc
+
+        Return: (prediction: int 0/1, probability: float 0-1)
+        Jika model gagal dimuat -> return (0, 0.0) sebagai fallback aman
+        (rule-based Kriteria 2 & 3 tetap jalan meski RF mati).
+        """
+        if self.artifact is None:
             return 0, 0.0
-        
-        # Mapping Data Form Indonesia (User) -> Dataset Inggris (AI)
-        # Helper function
-        def parse_yn(val, yes_score):
-            # Cek berbagai variasi input "Ya"
-            return yes_score if str(val).lower() in ['ya', 'iya', 'true', '1', 'yes'] else 0
 
-        row = {}
-        # Mapping field form  kolom dataset
-        row['Age'] = float(form_data.get('usia', 30))
-        # Laki-laki = 1 / Perempuan = 0
-        row['Gender'] = 1 if str(form_data.get('jenis_kelamin')).lower() == 'laki-laki' else 0
-        
-        row['Cough_Severity'] = parse_yn(form_data.get('batuk'), 5) 
-        row['Fever'] = parse_yn(form_data.get('demam_yang_tidak_diketahui_penyebabnya'), 1)
-        row['Weight_Loss'] = parse_yn(form_data.get('bb_turun_tanpa_sebab_jelas_bb_tidak_naik_nafsu_makan_turun'), 5.0)
-        row['Fatigue'] = parse_yn(form_data.get('badan_lemas'), 5)
-        row['Night_Sweats'] = parse_yn(form_data.get('berkesingat_malam_hari_tanpa_kegiatan'), 1)
-        row['Breathlessness'] = parse_yn(form_data.get('sesak_napas_tanpa_nyeri_dada'), 5)
-        row['Smoking_History'] = parse_yn(form_data.get('merokok_atau_perokokok_pasif'), 2)
-        row['Previous_TB_History'] = parse_yn(form_data.get('pernah_terdiagnosis_tbc'), 1)
-        
-        # Isi kolom sisa dataset yang tidak ada di form dengan 0
+        model = self.artifact['model']
+        feature_columns = self.artifact['feature_columns']
+        threshold = self.artifact['threshold']
+        median_impute = self.artifact['median_impute']
+
+        jk = str(form_data.get('jenis_kelamin', '')).strip().lower()
+
+        row = {
+            'age': form_data.get('usia'),
+            'sex_male': 1 if jk == 'laki-laki' else 0,
+            'weight': form_data.get('berat_badan'),
+            'height': form_data.get('tinggi_badan'),
+            'weight_loss': 1 if self._is_yes(form_data.get('bb_turun')) else 0,
+            'fever': 1 if self._is_yes(form_data.get('demam')) else 0,
+            'night_sweats': 1 if self._is_yes(form_data.get('keringat_malam')) else 0,
+            'smoke_lweek': 1 if self._is_yes(form_data.get('merokok')) else 0,
+            'tb_prior': 1 if self._is_yes(form_data.get('pernah_terdiagnosis_tbc')) else 0,
+        }
+
         df_input = pd.DataFrame([row])
-        for col in self.rf_columns:
-            if col not in df_input.columns:
-                df_input[col] = 0
-                
-        # Urutkan kolom sesuai saat training
-        df_input = df_input[self.rf_columns]
-        
-        prediction = self.model.predict(df_input)[0]
-        probability = self.model.predict_proba(df_input)[0][1]
-        
+
+        # Imputasi median PERSIS sama seperti training (bukan fit ulang)
+        for col, val in median_impute.items():
+            df_input[col] = df_input[col].fillna(val)
+        # Kalau usia/BB/TB tidak diisi sama sekali, isi median juga
+        df_input['age'] = df_input['age'].fillna(median_impute.get('age', 30))
+
+        df_input = df_input[feature_columns]
+
+        probability = float(model.predict_proba(df_input)[0][1])
+        prediction = int(probability >= threshold)
+
         return prediction, probability

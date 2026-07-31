@@ -33,10 +33,11 @@ import {
 } from "@/app/services/auth.services"
 import { getRiwayatSkriningByPasien, SkriningRiwayat } from "@/app/services/skrining.services"
 
+// 🛡️ PERBAIKAN 1: id dan user_id diubah menjadi string | number agar tidak error saat menerima Hashids
 type Patient = {
-  id: number
+  id: string | number
   nama: string
-  user_id?: number
+  user_id?: string | number
   nik?: string
   alamat?: string
   tanggal_lahir?: string
@@ -217,9 +218,11 @@ export default function UserDashboardPage() {
         })
         const allPatients: Patient[] =
           (res.data && (res.data.data ?? res.data)) || []
+        
+        // Sesuaikan dengan Hashids atau string/number dari backend
         const myPatients = userData.id
           ? allPatients.filter(
-              (p) => Number(p.user_id) === Number(userData.id)
+              (p) => p.user_id?.toString() === userData.id?.toString()
             )
           : allPatients
         setPatients(myPatients)
@@ -256,7 +259,8 @@ export default function UserDashboardPage() {
     init()
   }, [router])
 
-  const handleSelectPatient = (patientId: number) => {
+  // 🛡️ PERBAIKAN 2: Ubah tipe parameter menjadi string | number
+  const handleSelectPatient = (patientId: string | number) => {
     setIsPatientModalOpen(false)
     router.push(`/user/screening-kesehatan?pasienId=${patientId}`)
   }
@@ -340,7 +344,7 @@ export default function UserDashboardPage() {
                 iconVariant="outline"
                 title="Kelola Pasien."
                 description="Tambah dan kelola data anggota keluarga."
-                href="/user/data-screening"
+                href="/user/data-pasien"
               />
             </div>
           </div>
@@ -366,7 +370,15 @@ export default function UserDashboardPage() {
               {/* Loop Data Asli */}
               <div className="flex-1">
                 {histories.slice(0, 3).map((h) => {
-                  const isSuspek = h.hasil_screening.toLowerCase().includes("terduga") || h.hasil_screening.toLowerCase().includes("positif") || h.hasil_screening.toLowerCase().includes("suspek");
+                  
+                  // 🛡️ PERBAIKAN 3: Logika warna status
+                  const statusDeteksi = (h.hasil_screening || "").toLowerCase();
+                  const isSuspek = (
+                    (statusDeteksi.includes("terduga") || statusDeteksi.includes("positif") || statusDeteksi.includes("suspek")) 
+                    && !statusDeteksi.includes("tidak") 
+                    && !statusDeteksi.includes("bukan")
+                  );
+
                   return (
                     <ActivityRow
                       key={h.id}

@@ -4,7 +4,7 @@ from werkzeug.security import generate_password_hash, check_password_hash
 from app import db
 from app.model.user import User, UserRole
 
-def register_user(nama, email, password, role="user", kecamatan_id=None):
+def register_user(nama, email, password, role="user", kecamatan_id=None, kabupaten_id=None):
     hashed_pw = generate_password_hash (password)
 
     if role not in [r.value for r in UserRole]:
@@ -15,7 +15,8 @@ def register_user(nama, email, password, role="user", kecamatan_id=None):
         email=email,
         password_hash=hashed_pw,
         role=UserRole(role),
-        kecamatan_id=kecamatan_id
+        kecamatan_id=kecamatan_id,
+        kabupaten_id=kabupaten_id,
     )
     db.session.add(new_user)
     db.session.commit()
@@ -46,6 +47,7 @@ def login_user(email, password):
                 "email": user.email,
                 "role": role_value,
                 "kecamatan_id": user.kecamatan_id,
+                "kabupaten_id": user.kabupaten_id,
             },
             expires_delta=timedelta(hours=24)
         )

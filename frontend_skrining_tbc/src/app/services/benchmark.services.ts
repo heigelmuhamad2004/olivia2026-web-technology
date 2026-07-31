@@ -5,6 +5,20 @@ import { MathDetailsSigmoid } from "./skrining-suara.services";
 // ==========================================
 // INTERFACE UNTUK BENCHMARK (UJI KONSISTENSI & VARIASI)
 // ==========================================
+export interface ModelMetrics {
+  rmse: number; 
+  mae: number; 
+  mse: number;
+  tp: number;
+  tn: number;
+  fp: number;
+  fn: number;
+  accuracy: number;
+  precision: number;
+  recall: number;
+  f1_score: number;
+}
+
 export interface BenchmarkResultItem {
   iterasi?: number;
   nama_pasien?: string;

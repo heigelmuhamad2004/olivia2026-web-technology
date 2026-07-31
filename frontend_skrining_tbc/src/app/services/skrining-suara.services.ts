@@ -2,60 +2,26 @@ import axios from "axios";
 import { getActiveToken } from "./auth.services"; 
 
 export interface MathDetailsSigmoid {
-  aktivasi: string;
-  probabilitas_p: number;
-  raw_logit_z: number;
-  threshold: number;
-  rumus: string;
-  keterangan: string;
-}
-
-export interface SkriningRiwayat {
-  id: number;
-  tanggal_screening: string;
-  hasil_screening: string;
-  metode_skrining?: string;
-  skor_suara_ai?: number;
-  
-  
-  detail_matematika?: {
-    cnn?: { probabilitas: number; diagnosis: string; spectrogram_image: string; metrics: { rmse: number; mae: number; mse: number } };
-    densenet?: { probabilitas: number; diagnosis: string; spectrogram_image: string; metrics: { rmse: number; mae: number; mse: number } };
-    // metrics global dihapus
-    
-    aktivasi?: string;
-    probabilitas_p?: number;
-    raw_logit_z?: number;
-    threshold?: number;
-    rumus?: string;
-    keringan?: string;
-  } | null; 
+  aktivasi?: string;
+  probabilitas_p?: number;
+  raw_logit_z?: number;
+  vektor_klinis_scaled?: number[][];
 }
 
 export interface SkriningData {
-  skrining_id?: number;
+  skrining_id?: string | number; // 🛡️ Menerima string
   hasil_deteksi_akhir?: string;
-  probabilitas_tbc?: number;
+  skor_ai?: number;       
+  metode_ai?: string;     
   spectrogram_image?: string;
   file_suara_url?: string;
-  math_details?: MathDetailsSigmoid;
-  audio_base64?: string;
 }
 
 export interface SkriningResponse {
   status: "success" | "error" | "fail";
   message?: string;
   data?: SkriningData;
-  audio_base64?: string; // Khusus untuk response preview
-}
-
-export interface DualEvaluationResponse {
-  status: "success" | "error" | "fail";
-  message?: string;
-  data?: {
-    cnn: { probabilitas: number; diagnosis: string; spectrogram_image: string; metrics: { rmse: number; mae: number; mse: number } };
-    densenet: { probabilitas: number; diagnosis: string; spectrogram_image: string; metrics: { rmse: number; mae: number; mse: number } };
-  }
+  audio_base64?: string; 
 }
 
 export class SkriningSuaraService {
@@ -65,9 +31,6 @@ export class SkriningSuaraService {
     return { Authorization: `Bearer ${token}` };
   }
 
-
-
-  // TAHAP 1: Minta Backend memotong suara 1.2 detik
   static async previewCrop(
     audioData: File | Blob,
     fileName: string
@@ -90,16 +53,16 @@ export class SkriningSuaraService {
     }
   }
 
-  // TAHAP 2: Eksekusi Deteksi AI dengan Base64
   static async deteksiAI(
     audioBase64: string,
     model: "cnn" | "densenet",
-    skriningId: number | string
+    skriningId: string | number // 🛡️ BISA STRING
   ): Promise<SkriningResponse> {
     try {
       const API_URL = process.env.NEXT_PUBLIC_API_URL || "/api_flask";
+      
       const payload = {
-        skrining_id: Number(skriningId),
+        skrining_id: skriningId, // 🛡️ Kirim langsung (jangan di Number() kan)
         model: model,
         audio_base64: audioBase64
       };
@@ -119,27 +82,4 @@ export class SkriningSuaraService {
       };
     }
   }
-
-  // TAHAP 3: Eksekusi Evaluasi Ganda CNN + DenseNet
-  // Tambahkan skriningId sebagai parameter
-  static async evaluateDualAI(audioBase64: string, skriningId: string | number): Promise<DualEvaluationResponse> {
-    try {
-      const API_URL = process.env.NEXT_PUBLIC_API_URL || "/api_flask";
-      const payload = { 
-        audio_base64: audioBase64,
-        skrining_id: Number(skriningId) // Kirim ke backend
-      };
-      const response = await axios.post(`${API_URL}/skrining/audio/evaluate-dual`, payload, {
-        headers: {
-          ...this.getHeaders(),
-          "Content-Type": "application/json"
-        },
-      });
-      return response.data;
-    } catch (error: any) {
-      console.error("Error Evaluasi Dual AI:", error);
-      return { status: "error", message: error.response?.data?.message || "Gagal memproses komparasi AI." };
-    }
-  }
 }
-

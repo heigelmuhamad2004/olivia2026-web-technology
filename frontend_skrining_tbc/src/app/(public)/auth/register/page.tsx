@@ -68,20 +68,9 @@ const SignUp02Page = () => {
           Sign up Untuk TBCheck
         </p>
 
-        <Button variant="outline" className="mt-8 w-full gap-3">
-          <GoogleLogo />
-          Continue with Google
-        </Button>
-
-        <div className="my-7 w-full flex items-center justify-center overflow-hidden">
-          <Separator />
-          <span className="text-sm px-2">OR</span>
-          <Separator />
-        </div>
-
         <Form {...form}>
           <form
-            className="w-full space-y-4"
+            className="w-full pt-5 space-y-4"
             onSubmit={form.handleSubmit(onSubmit)}
           >
             <FormField

@@ -78,16 +78,6 @@ const SignUp02Page = () => {
           Masuk Untuk TBCheck
         </p>
 
-        <Button variant="outline" className="mt-8 w-full gap-3">
-          <GoogleLogo />
-          Continue with Google
-        </Button>
-
-        <div className="my-7 w-full flex items-center justify-center overflow-hidden">
-          <Separator />
-          <span className="text-sm px-2">Atau</span>
-          <Separator />
-        </div>
 
         <Form {...form}>
           <form

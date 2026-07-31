@@ -85,7 +85,8 @@ def get_current_user():
             "nama": claims.get("nama"),
             "email": claims.get("email"),
             "role": claims.get("role"),
-            "kecamatan_id": claims.get("kecamatan_id")
+            "kecamatan_id": claims.get("kecamatan_id"),
+            "kabupaten_id": claims.get("kabupaten_id")
         }), 200
 
     except Exception as e:

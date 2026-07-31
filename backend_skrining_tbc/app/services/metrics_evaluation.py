@@ -1,157 +1,119 @@
 import math
-# TODO: Pastikan import model Skrining di bawah ini sesuai dengan struktur folder Flask-mu
-# Misalnya: from app.models import Skrining
 from app import db 
 from app.model.skrining import Skrining
 
 class MetricsEvaluationService:
     @staticmethod
     def calculate_global_metrics():
-        """
-        Fungsi ini menghitung evaluasi metrik (MAE, MSE, RMSE) dari seluruh data pengujian.
-        Rumus RMSE: Akar dari (Rata-rata Kuadrat Selisih)
-        Rumus MAE: Rata-rata dari (Nilai Absolut Selisih)
-        """
         try:
-            # 1. Tarik HANYA data skrining yang sudah diuji AI (memiliki detail_matematika)
             skrinings = Skrining.query.filter(Skrining.detail_matematika != None).all()
 
-            total_diuji = 0  # Ini adalah variabel 'n' (Total jumlah data)
+            total_diuji = 0
             total_suspek = 0
 
-            # Keranjang untuk mengumpulkan Error per baris data
-            cnn_abs_errors = []  # Menampung nilai absolut untuk perhitungan MAE
-            cnn_sq_errors = []   # Menampung nilai kuadrat untuk perhitungan RMSE
-            
-            dense_abs_errors = []
-            dense_sq_errors = []
-
+            # Keranjang Error
+            cnn_abs_errors, cnn_sq_errors = [], []
+            dense_abs_errors, dense_sq_errors = [], []
             anomalies = []
+
+            # ==========================================
+            # VARIABEL CONFUSION MATRIX BARU
+            # ==========================================
+            cnn_tp = cnn_tn = cnn_fp = cnn_fn = 0
+            dense_tp = dense_tn = dense_fp = dense_fn = 0
 
             for sk in skrinings:
                 data = sk.detail_matematika
-                
-                # Lewati jika bukan data Dual Evaluasi (belum ada CNN/DenseNet)
                 if not data or 'cnn' not in data or 'densenet' not in data:
                     continue
 
                 total_diuji += 1
 
-                # ==============================================================
-                # TAHAP 1: MENENTUKAN NILAI AKTUAL (GROUND TRUTH / y_i)
-                # ==============================================================
                 is_suspek = 'terduga' in sk.hasil_deteksi.lower()
                 if is_suspek:
                     total_suspek += 1
                     
-                # y_i = 100 jika Terduga TBC, 0 jika Sehat
                 y_true = 100.0 if is_suspek else 0.0
+                y_true_class = 1 if is_suspek else 0 # 1 = TBC, 0 = Sehat
 
-                # ==============================================================
-                # TAHAP 2: HITUNG ERROR UNTUK MODEL CNN
-                # ==============================================================
-                # y_topi (y_prediksi) dari keluaran model AI
+                # --- CNN ---
                 cnn_prob = data['cnn'].get('probabilitas', 0.0)
-                
-                # MAE Error: | y_i - y_topi | (Selisih mutlak tanpa minus)
-                cnn_abs = abs(y_true - cnn_prob)
-                
-                # RMSE Error: (y_i - y_topi)^2 (Selisih dikuadratkan)
-                cnn_sq = (y_true - cnn_prob) ** 2
-                
-                # Simpan error pasien ini ke keranjang (untuk dijumlahkan nanti)
-                cnn_abs_errors.append(cnn_abs)
-                cnn_sq_errors.append(cnn_sq)
+                cnn_abs_errors.append(abs(y_true - cnn_prob))
+                cnn_sq_errors.append((y_true - cnn_prob) ** 2)
 
-                # ==============================================================
-                # TAHAP 3: HITUNG ERROR UNTUK MODEL DENSENET
-                # ==============================================================
+                # Klasifikasi CNN (Threshold 50%)
+                cnn_pred_class = 1 if cnn_prob >= 50.0 else 0
+                if y_true_class == 1 and cnn_pred_class == 1: cnn_tp += 1
+                elif y_true_class == 0 and cnn_pred_class == 0: cnn_tn += 1
+                elif y_true_class == 0 and cnn_pred_class == 1: cnn_fp += 1
+                elif y_true_class == 1 and cnn_pred_class == 0: cnn_fn += 1
+
+                # --- DENSENET ---
                 dense_prob = data['densenet'].get('probabilitas', 0.0)
-                
-                dense_abs = abs(y_true - dense_prob)
-                dense_sq = (y_true - dense_prob) ** 2
-                
-                dense_abs_errors.append(dense_abs)
-                dense_sq_errors.append(dense_sq)
+                dense_abs_errors.append(abs(y_true - dense_prob))
+                dense_sq_errors.append((y_true - dense_prob) ** 2)
 
-                # ==============================================================
-                # TAHAP 4: MENCATAT ANOMALI (KESALAHAN FATAL)
-                # ==============================================================
-                # Dapatkan Nama Pasien
-                nama_pasien = f"Pasien ID: {sk.pasien_id}" 
-                if hasattr(sk, 'pasien') and sk.pasien:
-                    nama_pasien = sk.pasien.nama
+                # Klasifikasi DenseNet (Threshold 50%)
+                dense_pred_class = 1 if dense_prob >= 50.0 else 0
+                if y_true_class == 1 and dense_pred_class == 1: dense_tp += 1
+                elif y_true_class == 0 and dense_pred_class == 0: dense_tn += 1
+                elif y_true_class == 0 and dense_pred_class == 1: dense_fp += 1
+                elif y_true_class == 1 and dense_pred_class == 0: dense_fn += 1
 
-                # Deteksi Anomali jika tebakan meleset lebih dari 50%
-                if cnn_abs > 50.0:
-                    anomalies.append({
-                        "id": int(f"10{sk.id}"),
-                        "nama": nama_pasien,
-                        "kunci_asli": sk.hasil_deteksi,
-                        "prediksi_ai": f"{cnn_prob:.2f}%",
-                        "model": "CNN",
-                        "error_margin": round(cnn_abs, 2)
-                    })
-                
-                if dense_abs > 50.0:
-                    anomalies.append({
-                        "id": int(f"20{sk.id}"),
-                        "nama": nama_pasien,
-                        "kunci_asli": sk.hasil_deteksi,
-                        "prediksi_ai": f"{dense_prob:.2f}%",
-                        "model": "DenseNet",
-                        "error_margin": round(dense_abs, 2)
-                    })
+                # --- ANOMALI (Tetap sama) ---
+                nama_pasien = sk.pasien.nama if hasattr(sk, 'pasien') and sk.pasien else f"Pasien ID: {sk.pasien_id}" 
+                if abs(y_true - cnn_prob) > 50.0:
+                    anomalies.append({"id": int(f"10{sk.id}"), "nama": nama_pasien, "kunci_asli": sk.hasil_deteksi, "prediksi_ai": f"{cnn_prob:.2f}%", "model": "CNN", "error_margin": round(abs(y_true - cnn_prob), 2)})
+                if abs(y_true - dense_prob) > 50.0:
+                    anomalies.append({"id": int(f"20{sk.id}"), "nama": nama_pasien, "kunci_asli": sk.hasil_deteksi, "prediksi_ai": f"{dense_prob:.2f}%", "model": "DenseNet", "error_margin": round(abs(y_true - dense_prob), 2)})
 
-            # Urutkan Anomali dari error tertinggi ke terendah, ambil maksimal 10 data
             anomalies = sorted(anomalies, key=lambda x: x['error_margin'], reverse=True)[:10]
 
-            # ==============================================================
-            # TAHAP 5: PERHITUNGAN FINAL METRIK (RATA-RATA & AKAR)
-            # ==============================================================
-            if total_diuji > 0: # Pastikan n > 0 agar tidak error pembagian nol
-                
-                # --- FINALISASI CNN ---
-                # Rumus MAE: (Sigma Error Absolut) dibagi (n)
-                cnn_mae = sum(cnn_abs_errors) / total_diuji
-                
-                # Rumus MSE: (Sigma Error Kuadrat) dibagi (n)
-                cnn_mse = sum(cnn_sq_errors) / total_diuji
-                
-                # Rumus RMSE: Akar Kuadrat dari MSE 
-                cnn_rmse = math.sqrt(cnn_mse)
+            # ==========================================
+            # FUNGSI PEMBANTU MENGHITUNG METRIK
+            # ==========================================
+            def calc_classification_metrics(tp, tn, fp, fn):
+                total = tp + tn + fp + fn
+                accuracy = (tp + tn) / total if total > 0 else 0
+                precision = tp / (tp + fp) if (tp + fp) > 0 else 0
+                recall = tp / (tp + fn) if (tp + fn) > 0 else 0
+                f1 = 2 * (precision * recall) / (precision + recall) if (precision + recall) > 0 else 0
+                return {
+                    "tp": tp, "tn": tn, "fp": fp, "fn": fn,
+                    "accuracy": round(accuracy * 100, 2),
+                    "precision": round(precision * 100, 2),
+                    "recall": round(recall * 100, 2),
+                    "f1_score": round(f1 * 100, 2)
+                }
 
-                # --- FINALISASI DENSENET ---
-                dense_mae = sum(dense_abs_errors) / total_diuji
-                dense_mse = sum(dense_sq_errors) / total_diuji
-                dense_rmse = math.sqrt(dense_mse)
+            if total_diuji > 0:
+                cnn_metrics = {
+                    "mae": round(sum(cnn_abs_errors) / total_diuji, 2),
+                    "mse": round(sum(cnn_sq_errors) / total_diuji, 2),
+                    "rmse": round(math.sqrt(sum(cnn_sq_errors) / total_diuji), 2),
+                    **calc_classification_metrics(cnn_tp, cnn_tn, cnn_fp, cnn_fn)
+                }
+                dense_metrics = {
+                    "mae": round(sum(dense_abs_errors) / total_diuji, 2),
+                    "mse": round(sum(dense_sq_errors) / total_diuji, 2),
+                    "rmse": round(math.sqrt(sum(dense_sq_errors) / total_diuji), 2),
+                    **calc_classification_metrics(dense_tp, dense_tn, dense_fp, dense_fn)
+                }
             else:
-                cnn_mae = cnn_mse = cnn_rmse = 0.0
-                dense_mae = dense_mse = dense_rmse = 0.0
+                empty_metrics = {"mae": 0.0, "mse": 0.0, "rmse": 0.0, "tp": 0, "tn": 0, "fp": 0, "fn": 0, "accuracy": 0.0, "precision": 0.0, "recall": 0.0, "f1_score": 0.0}
+                cnn_metrics = empty_metrics
+                dense_metrics = empty_metrics
 
-            # Kembalikan Dictionary murni ke Controller
             return {
                 "status": "success",
                 "metrics": {
                     "total_pasien": total_diuji,
                     "total_suspek": total_suspek,
-                    "cnn": {
-                        "mae": round(cnn_mae, 2),
-                        "mse": round(cnn_mse, 2),
-                        "rmse": round(cnn_rmse, 2)
-                    },
-                    "densenet": {
-                        "mae": round(dense_mae, 2),
-                        "mse": round(dense_mse, 2),
-                        "rmse": round(dense_rmse, 2)
-                    }
+                    "cnn": cnn_metrics,
+                    "densenet": dense_metrics
                 },
                 "anomalies": anomalies
             }
-
         except Exception as e:
             print(f"Error pada MetricsEvaluationService: {str(e)}")
-            return {
-                "status": "error",
-                "message": "Terjadi kesalahan saat menghitung metrik evaluasi."
-            }
+            return {"status": "error", "message": "Terjadi kesalahan saat menghitung metrik evaluasi."}

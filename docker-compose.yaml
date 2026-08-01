@@ -4,7 +4,7 @@ services:
     image: mysql:8.0
     restart: unless-stopped
     environment:
-      MYSQL_ALLOW_EMPTY_PASSWORD: 'yes'
+      MYSQL_ROOT_PASSWORD: 'kapanlagi?'
       MYSQL_DATABASE: db_tbcheckv3
     ports:
       - "3306:3306"
@@ -20,7 +20,7 @@ services:
     environment:
       PMA_HOST: db
       PMA_USER: root
-      PMA_PASSWORD: ""
+      PMA_PASSWORD: 'kapanlagi?'
     depends_on:
       - db
 

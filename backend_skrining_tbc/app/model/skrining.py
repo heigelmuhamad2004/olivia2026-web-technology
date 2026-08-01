@@ -35,7 +35,7 @@ class Skrining(db.Model):
     tanggal_skrining = db.Column(db.Date, nullable=False)
     hasil_deteksi = db.Column(db.String(255), nullable=False)
 
-    metode_skrining = db.Column(db.String(50), default="Form Only", nullable=False)
+    metode_skrining = db.Column(db.String(255), default="Form Only", nullable=False)
     skor_form_ai = db.Column(db.Float, nullable=True)  # Akurasi dari Random Forest (%)
     skor_suara_ai = db.Column(db.Float, nullable=True) # Probabilitas dari CNN (%) jika pasien batuk
     file_suara = db.Column(db.String(255), nullable=True) # Nama/Path file rekaman untuk riwayat

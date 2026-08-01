@@ -12,7 +12,7 @@ class Config(object):
     DB_HOST = os.environ.get('DB_HOST')
     DB_NAME = os.environ.get('DB_DATABASE')
     
-    SQLALCHEMY_DATABASE_URI = "mysql+pymysql://root:@db:3306/db_tbcheckv3"
+    SQLALCHEMY_DATABASE_URI = "mysql+pymysql://root:kapanlagi?@db:3306/db_tbcheckv3"
 
     SQLALCHEMY_TRACK_MODIFICATIONS = False
     SQLALCHEMY_RECORD_QUERIES = True

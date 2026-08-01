@@ -162,21 +162,41 @@ class AIAudioService:
         fitur_scaled = _SCALER.transform(fitur_mentah)
         return fitur_scaled.astype(np.float32)
 
+
     @staticmethod
     def _siapkan_gambar_spektrogram(audio_path):
-        """Membuat Tensor Gambar Spektrogram dari Audio."""
-        y, sr = librosa.load(audio_path, sr=22050)
+        """Membuat Tensor Gambar Spektrogram dari Audio.
         
-        target_samples = int(0.5 * sr)
-        if len(y) > target_samples:
-            puncak = np.argmax(np.abs(y))
-            awal = max(0, puncak - (target_samples // 2))
-            akhir = min(len(y), awal + target_samples)
-            y = y[awal:akhir]
-        if len(y) < target_samples:
-            y = np.pad(y, (0, target_samples - len(y)), mode='constant')
+        PERBAIKAN: sekarang trim hening dulu (librosa.effects.trim) SEBELUM
+        cari puncak - konsisten dengan generate_preview_base64(). Tanpa ini,
+        argmax bisa 'terjebak' pada noise/klik di awal rekaman mentah,
+        bukan pada suara batuk sesungguhnya - menyebabkan spektrogram yang
+        dihasilkan nyaris sama terus meski audio aslinya beda-beda.
+        """
+        y, sr = librosa.load(audio_path, sr=22050)
 
-        S = librosa.feature.melspectrogram(y=y, sr=sr, n_mels=128, n_fft=1024, hop_length=64)
+        # --- LANGKAH BARU: trim hening dulu, SAMA seperti generate_preview_base64 ---
+        y_trimmed, _ = librosa.effects.trim(y, top_db=20)
+
+        if len(y_trimmed) == 0:
+            raise ValueError("Suara tidak terdeteksi atau terlalu hening. Silakan rekam ulang.")
+        if np.max(np.abs(y_trimmed)) < 0.05:
+            raise ValueError("Suara terlalu pelan. Silakan rekam ulang batuk yang lebih jelas.")
+
+        target_samples = int(0.5 * sr)
+        if len(y_trimmed) > target_samples:
+            # Cari puncak DI DALAM audio yang SUDAH bersih dari hening/noise awal
+            puncak = np.argmax(np.abs(y_trimmed))
+            awal = max(0, puncak - (target_samples // 2))
+            akhir = min(len(y_trimmed), awal + target_samples)
+            y_final = y_trimmed[awal:akhir]
+        else:
+            y_final = y_trimmed
+
+        if len(y_final) < target_samples:
+            y_final = np.pad(y_final, (0, target_samples - len(y_final)), mode='constant')
+
+        S = librosa.feature.melspectrogram(y=y_final, sr=sr, n_mels=128, n_fft=1024, hop_length=64)
         S_dB = librosa.power_to_db(S, ref=np.max)
 
         fig = plt.figure(figsize=(3, 3))
@@ -187,11 +207,11 @@ class AIAudioService:
         plt.savefig(buf, format='png', bbox_inches='tight', pad_inches=0, dpi=100)
         plt.close(fig)
         buf.seek(0)
-        
+
         img_b64 = f"data:image/png;base64,{base64.b64encode(buf.getvalue()).decode('utf-8')}"
-        img_pil = Image.open(buf).convert('RGB').resize((224, 224)) 
+        img_pil = Image.open(buf).convert('RGB').resize((224, 224))
         input_tensor = np.expand_dims(np.array(img_pil).astype(np.float32) / 255.0, axis=0)
-        
+
         return input_tensor, img_b64
 
     @classmethod
